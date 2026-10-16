@@ -1,4 +1,4 @@
-/* Little Imagination Club — One Magical Art Studio 3.4 (editable autosave and My Creations), unified child-friendly touch editor
+/* Little Imagination Club — One Magical Art Studio 3.5 (continuous drawing and instant-recovery autosave), unified child-friendly touch editor
  * Use instead of magic_workstation_v2.js: <script src="one_magical_studio.js"></script>
  * Editable projects autosave in this browser using IndexedDB. Manual PNG and project backups available.
  */
@@ -110,7 +110,9 @@
     <div class="easy-quick-help">
       <button id="easy-delete-selected" type="button">🗑️ Bin selected piece</button>
       <button id="easy-undo-near" type="button">↩️ Oops! Undo</button>
+      <button id="easy-save-now" type="button">💾 Save now</button>
     </div>
+    <p id="easy-near-save-status" class="easy-near-save-status" role="status" aria-live="polite">⏳ Checking saved creations…</p>
     <div class="easy-cut-confirm" id="easy-cut-confirm" hidden>
       <strong>✂️ Happy with this selection?</strong>
       <button id="easy-cut-done" type="button">✅ Done — cut it</button>
@@ -247,6 +249,8 @@
     #lic-easy-art .easy-quick-help{display:flex;align-items:center;justify-content:space-between;
       flex-wrap:wrap;gap:8px;margin-top:8px;padding:8px 2px;font-weight:850;font-size:13px}
     #lic-easy-art #easy-undo-near{background:#fff3c8;border-color:#c692d4;min-height:48px}
+    #lic-easy-art #easy-save-now{background:#dff6e9;border-color:#63ac88;min-height:48px}
+    #lic-easy-art .easy-near-save-status{font-size:13px;font-weight:800;color:#6743a7;margin:9px 2px 12px;line-height:1.45}
     #lic-easy-art #easy-delete-selected{background:#ffe5e7;border-color:#d65c83;min-height:48px}
     #lic-easy-art .easy-cut-confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
       background:#fff7d9;padding:11px;border:2px solid #e5cb79;border-radius:15px;margin:8px 0}
@@ -300,6 +304,7 @@
     if (history.length > 22) history.shift();
     step = history.length-1;
     changed = true;
+    if(!creationLoaded)editsBeforeReady=true;
     controls();
     queueCreationSave();
   }
@@ -640,8 +645,9 @@
     cx.stroke();
     const o={id:makeId(),name:'My line',img:c,x:minX+w/2,y:minY+h/2,
       w,h,scale:1,rot:0,isLine:true};
-    items.push(o);selected=o.id;tool='move';
-    checkpoint();render();message('Your line is ready! 👆 Drag it to move it or choose Recolour line.');
+    // Drawing stays in Draw mode. The child chooses Grab explicitly when ready.
+    items.push(o);selected=null;tool='draw';
+    checkpoint();render();message('🖌️ Lovely! Keep drawing. Tap ✋ Grab only when you want to move a line.');
   }
   function cutSelected(a,b){
     if(items.length>=45){message('This page is full. Save and start a fresh page.');return;}
@@ -812,12 +818,20 @@
   // ---- My Creations: editable artwork, saved on this device ----
   const CREATIONS_DB='lic_editable_creations_v1';
   const ACTIVE_KEY='lic_active_creation_v1';
+  const RECOVERY_KEY='lic_editable_creation_emergency_v1';
+  const recoveryImageCache=new WeakMap();
+  let editsBeforeReady=false;
+  let localRecoveryAvailable=true;
   const imageBlobCache=new WeakMap();
   let creationId=makeId(), creationName='My Masterpiece', creationLoaded=false;
   let creationTimer=null, creationSaveChain=Promise.resolve(), creationRevision=0;
+  let lastWrittenCreationRevision=-1;
   let creationDB=null, creationsOpen=false;
   let previewURLs=[];
-  const autosaveStatus=s=>$('easy-autosave-status').textContent=s;
+  const autosaveStatus=s=>{
+    $('easy-autosave-status').textContent=s;
+    $('easy-near-save-status').textContent=s;
+  };
   function openCreationsDB(){return new Promise((resolve,reject)=>{
     if(!('indexedDB' in window)){reject(new Error('No IndexedDB'));return;}
     const req=indexedDB.open(CREATIONS_DB,1);
@@ -840,6 +854,65 @@
       tx.onabort=()=>reject(tx.error||new Error('Storage failed'));
     }catch(e){reject(e);}
   });}
+  // A synchronous recovery journal protects rapid refreshes before IndexedDB finishes.
+  // It is intentionally best-effort and size-limited; the full editable project
+  // remains in IndexedDB when available.
+  function emergencyImage(img){
+    if(recoveryImageCache.has(img))return recoveryImageCache.get(img);
+    const width=img.width||img.naturalWidth,height=img.height||img.naturalHeight;
+    if(!width||!height||width*height>4600000)throw new Error('Image too large for quick recovery');
+    const c=makeCanvas(width,height);
+    c.getContext('2d').drawImage(img,0,0);
+    const url=c.toDataURL(width*height>180000?'image/webp':'image/png',.86);
+    if(url.length>1900000)throw new Error('Quick recovery exceeds safe storage size');
+    recoveryImageCache.set(img,url);
+    return url;
+  }
+  function writeEmergencyDraft(){
+    if(!creationLoaded)return false;
+    if(!items.length&&scene<0&&!changed)return false;
+    try{
+      const layers=items.map(o=>({id:o.id,name:o.name||'Picture',w:o.w,h:o.h,
+        x:o.x,y:o.y,scale:o.scale,rot:o.rot,isLine:!!o.isLine,img:emergencyImage(o.img)}));
+      const state=JSON.stringify({format:'lic-quick-recovery-1',id:creationId,
+        name:creationName,scene,updated:Date.now(),layers});
+      if(state.length>2400000)throw new Error('Draft exceeds device recovery limit');
+      localStorage.setItem(RECOVERY_KEY,state);
+      localRecoveryAvailable=true;
+      return true;
+    }catch(e){
+      // Never restore an old journal if we could not encode the latest edit.
+      try{localStorage.removeItem(RECOVERY_KEY);}catch(_e){}
+      localRecoveryAvailable=false;
+      return false;
+    }
+  }
+  function clearEmergencyFor(id){
+    try{const raw=localStorage.getItem(RECOVERY_KEY);
+      if(raw&&JSON.parse(raw)?.id===id)localStorage.removeItem(RECOVERY_KEY);
+    }catch(e){}
+  }
+  function readEmergencyDraft(activeId){
+    try{
+      const raw=localStorage.getItem(RECOVERY_KEY);
+      if(!raw||raw.length>2500000)return null;
+      const record=JSON.parse(raw);
+      if(record?.format!=='lic-quick-recovery-1'||record.id!==activeId||
+         !Array.isArray(record.layers)||record.layers.length>45)return null;
+      if(record.layers.some(o=>typeof o.img!=='string'||!o.img.startsWith('data:image/')||o.img.length>1900000))return null;
+      return record;
+    }catch(e){return null;}
+  }
+  async function restoreEmergencyDraft(record){
+    const layers=await Promise.all(record.layers.map(async o=>({...o,img:await readImage(o.img)})));
+    items.splice(0,items.length,...layers);
+    scene=Number.isInteger(record.scene)?record.scene:-1;
+    creationId=record.id;creationName=record.name||'My Masterpiece';rememberActive();
+    selected=null;tool='move';interaction=null;draft=null;pendingCut=null;
+    history=[snapshot()];step=0;changed=true;
+    updateSceneButtons();controls();render();
+    autosaveStatus('🛟 Recovered your drawing after refresh — saving it safely now…');
+  }
   function imageBlob(img){
     if(imageBlobCache.has(img))return imageBlobCache.get(img);
     const pending=new Promise((resolve,reject)=>{
@@ -860,14 +933,22 @@
     }catch(e){reject(e);}
   });}
   function queueCreationSave(){
-    if(!creationLoaded||!creationDB)return;
+    if(!creationLoaded)return;
     clearTimeout(creationTimer);
-    autosaveStatus('⏳ Saving your masterpiece…');
-    creationTimer=setTimeout(()=>{creationTimer=null;saveCreationNow();},280);
+    // Write a compact recovery copy right now, before any timer or async PNG work.
+    const journaled=writeEmergencyDraft();
+    if(!creationDB){
+      autosaveStatus(journaled?'⚠️ Kept a recovery copy on this device; full automatic saving is unavailable.':'⚠️ Saving unavailable — please download your artwork.');
+      return;
+    }
+    autosaveStatus(journaled?'⏳ Saving… quick recovery is ready':'⏳ Saving… please wait for Saved automatically before closing');
+    // Never wait 280ms to begin a save after a finished stroke.
+    creationTimer=setTimeout(()=>{creationTimer=null;saveCreationNow();},0);
   }
   function saveCreationNow(){
     clearTimeout(creationTimer);creationTimer=null;
-    if(!creationLoaded||!creationDB)return Promise.resolve();
+    if(!creationLoaded)return Promise.resolve();
+    if(!creationDB){writeEmergencyDraft();return Promise.resolve();}
     if(!items.length && scene===-1 && !changed)return creationSaveChain;
     const revision=++creationRevision;
     // Capture layer positions right away; PNG blobs are cached while layers stay unchanged.
@@ -879,6 +960,8 @@
       const record={...captured,layers,thumbnail:await thumbnail};
       await dbAction('put','readwrite',record);
       if(revision===creationRevision && creationId===record.id){
+        clearEmergencyFor(record.id);
+        lastWrittenCreationRevision=revision;
         autosaveStatus('✅ Saved automatically on this device');
         if(creationsOpen)await renderCreationsHub();
       }
@@ -914,7 +997,8 @@
   async function freshCreation(){
     await saveCreationNow();
     creationLoaded=false;
-    creationId=makeId();creationName='My Masterpiece';rememberActive();
+    const lastCreation=creationId;
+    creationId=makeId();creationName='My Masterpiece';rememberActive();clearEmergencyFor(lastCreation);
     items.length=0;scene=-1;history=[{pieces:[],scene:-1}];step=0;selected=null;
     changed=false;tool='move';pendingCut=null;draft=null;interaction=null;
     zoom=1;canvas.style.width='100%';$('easy-zoom-level').textContent='100%';
@@ -1048,19 +1132,47 @@
     finally{e.target.value='';}
   });
   async function initialiseCreations(){
+    let lastId='';try{lastId=localStorage.getItem(ACTIVE_KEY)||'';}catch(e){}
     try{
       creationDB=await openCreationsDB();
       const all=(await dbAction('all')).filter(o=>!o.deletedAt).sort((a,b)=>(b.updated||0)-(a.updated||0));
-      let lastId='';try{lastId=localStorage.getItem(ACTIVE_KEY)||'';}catch(e){}
+      if(editsBeforeReady){
+        // Don't overwrite work the child started while storage was opening.
+        creationLoaded=true;rememberActive();queueCreationSave();return;
+      }
       const existing=all.find(o=>o.id===lastId)||all[0];
+      const emergency=readEmergencyDraft(lastId);
+      // A half-finished save can leave the emergency copy newer than IndexedDB.
+      if(emergency && (!existing||emergency.id===existing.id&&emergency.updated>(existing.updated||0))){
+        creationLoaded=true;
+        await restoreEmergencyDraft(emergency);
+        queueCreationSave();return;
+      }
       if(existing)await openCreation(existing,true);
       else{creationLoaded=true;rememberActive();autosaveStatus('💜 Auto-save is ready. Start creating!');}
-    }catch(e){creationLoaded=false;console.warn('Auto-save not available:',e);
-      autosaveStatus('⚠️ Automatic saving unavailable on this browser. Download finished PNG pictures regularly.');
+    }catch(e){
+      console.warn('IndexedDB auto-save not available:',e);
+      creationDB=null;creationLoaded=true;
+      const emergency=readEmergencyDraft(lastId);
+      if(emergency){
+        try{await restoreEmergencyDraft(emergency);}catch(err){console.warn('Emergency draft could not be restored:',err);}
+      }
+      autosaveStatus('⚠️ Full automatic saving is unavailable on this browser. Please download and back up your pictures.');
     }
   }
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveCreationNow();});
-  window.addEventListener('pagehide',()=>{if(creationTimer)saveCreationNow();});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'&&(creationTimer||creationRevision>lastWrittenCreationRevision)){
+      writeEmergencyDraft();saveCreationNow();
+    }
+  });
+  window.addEventListener('pagehide',()=>{
+    if(creationTimer||creationRevision>lastWrittenCreationRevision){writeEmergencyDraft();saveCreationNow();}
+  });
+  $('easy-save-now').addEventListener('click',async()=>{
+    writeEmergencyDraft();
+    await saveCreationNow();
+    if(!creationDB)message('Please download the picture: full auto-save is unavailable.');
+  });
   // ---- end My Creations ----
 
   function undo(){if(step>0){rollback(--step);message('↩️ Brought it back! 💜');}}
