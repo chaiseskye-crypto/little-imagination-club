@@ -1,4 +1,4 @@
-/* Little Imagination Club — One Magical Art Studio 3.0, unified child-friendly touch editor
+/* Little Imagination Club — One Magical Art Studio 3.2 (grab, choose layers, preview cuts, zoom, bin), unified child-friendly touch editor
  * Use instead of magic_workstation_v2.js: <script src="one_magical_studio.js"></script>
  * All artwork remains in browser; saved copies download as PNG.
  */
@@ -54,9 +54,10 @@
     </details>
     <h4 class="easy-step">🖌️ 2. Tap a magic tool!</h4>
     <div class="easy-tools" role="group" aria-label="Editing tools">
-      <button data-easy-tool="move" aria-pressed="true">👆 Move</button>
+      <button data-easy-tool="move" aria-pressed="true">✋ Grab & Move</button>
       <button data-easy-tool="draw" aria-pressed="false">🖌️ Draw</button>
-      <button data-easy-tool="cut" aria-pressed="false">✂️ Cut</button>
+      <button data-easy-tool="cut" aria-pressed="false">✂️ Box Cut</button>
+      <button data-easy-tool="magic" aria-pressed="false">✨ Tap Cut</button>
       <button data-easy-tool="erase" aria-pressed="false">🧽 Erase</button>
       <button data-easy-tool="paint" aria-pressed="false">🌈 Colour part</button>
       <button data-easy-tool="fill" aria-pressed="false">🪣 Fill colour</button>
@@ -71,13 +72,44 @@
       <div class="easy-palette" id="easy-palette" aria-label="Choose a colour"></div>
     </details>
     <h4 class="easy-step">🌟 3. Create your masterpiece!</h4>
+    <div class="easy-canvas-toolbar" aria-label="Picture controls">
+      <button id="easy-grab" type="button">✋ Grab</button>
+      <button id="easy-zoom-out" type="button">➖ Zoom</button>
+      <strong id="easy-zoom-level" aria-live="polite">100%</strong>
+      <button id="easy-zoom-in" type="button">➕ Zoom</button>
+      <button id="easy-zoom-reset" type="button">🔎 Fit</button>
+    </div>
+    <p class="easy-small">For a closer look, zoom in, then slide around the picture. Zoom does not resize the saved artwork.</p>
     <div class="easy-canvas-wrap">
       <canvas id="easy-canvas" width="800" height="600" aria-label="Drag or draw on your magical canvas"></canvas>
+      <div class="easy-trash-target" id="easy-trash-target" hidden aria-hidden="true">
+        <span aria-hidden="true">🗑️</span><strong>DROP HERE</strong><small>Let go to throw away!</small>
+      </div>
     </div>
+    <div class="easy-quick-help">
+      <button id="easy-delete-selected" type="button">🗑️ Bin selected piece</button>
+      <button id="easy-undo-near" type="button">↩️ Oops! Undo</button>
+    </div>
+    <div class="easy-cut-confirm" id="easy-cut-confirm" hidden>
+      <strong>✂️ Happy with this selection?</strong>
+      <button id="easy-cut-done" type="button">✅ Done — cut it</button>
+      <button id="easy-cut-cancel" type="button">❌ Cancel</button>
+    </div>
+    <details class="easy-layer-picker" id="easy-layer-picker" open>
+      <summary>🧩 My movable pictures & lines (<span id="easy-layer-count">0</span>)</summary>
+      <p class="easy-small">Tap a name to grab it, even when it is behind another picture.</p>
+      <div id="easy-layer-list" class="easy-layer-list"></div>
+    </details>
     <p id="easy-status" role="status">Ready for your next masterpiece! 💜</p>
     <div class="easy-selected" id="easy-selected">
       <h4>✨ Change the selected picture or line</h4>
-      <p class="easy-small">Drag it to move • resize it • turn it • send it behind!</p>
+      <p class="easy-small">Grab and drag it, or use the arrow buttons below. Resize, rotate or change its layer.</p>
+      <div class="easy-row">
+        <button data-easy-act="up">⬆️ Move up</button>
+        <button data-easy-act="down">⬇️ Move down</button>
+        <button data-easy-act="moveleft">⬅️ Left</button>
+        <button data-easy-act="moveright">➡️ Right</button>
+      </div>
       <div class="easy-row">
         <button data-easy-act="smaller">➖ Smaller</button>
         <button data-easy-act="bigger">➕ Bigger</button>
@@ -90,7 +122,6 @@
         <button data-easy-act="copy">🧩 Copy</button>
         <button data-easy-act="front">⬆️ In front</button>
         <button data-easy-act="back">⬇️ Behind</button>
-        <button data-easy-act="delete">🗑️ Remove</button>
       </div>
     </div>
     <h4 class="easy-step">💝 4. Keep your creation!</h4>
@@ -99,7 +130,7 @@
       <button id="easy-redo" type="button">↪️ Redo</button>
       <button id="easy-save" type="button">💜 Save my picture</button>
     </div>
-    <p class="easy-small">Your original uploads stay unchanged. Cut makes rectangular pieces; Colour part paints where you touch; Fill colour works best on simple outlined drawings. Undo is always there! 💜</p>
+    <p class="easy-small">Your original uploads stay unchanged. Each line drawn here is a movable piece. Box Cut selects a rectangle; Tap Cut selects a connected area of similar colour (best on cartoons). Preview cuts before pressing Done. Undo is always there! 💜</p>
   `;
   const style = document.createElement('style');
   style.textContent = `
@@ -153,8 +184,39 @@
     #lic-easy-art .easy-paint label{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px}
     #lic-easy-art .easy-checkbox{width:100%}
     #lic-easy-art input[type="range"]{width:100px;max-width:27vw}
-    #lic-easy-art .easy-canvas-wrap{border:3px solid #d7b6eb;background:white;border-radius:20px;overflow:hidden;}
-    #lic-easy-art canvas{display:block;width:100%;height:auto;aspect-ratio:4 / 3;touch-action:none;user-select:none}
+    #lic-easy-art .easy-canvas-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:10px 0}
+    #lic-easy-art .easy-canvas-toolbar button{padding:8px;min-height:45px;flex:1 0 64px}
+    #lic-easy-art .easy-canvas-toolbar strong{font-size:13px;flex:0 0 45px;text-align:center}
+    #lic-easy-art .easy-canvas-wrap{border:3px solid #d7b6eb;background:white;border-radius:20px;overflow:auto;position:relative;max-height:75vh}
+    #lic-easy-art canvas{display:block;width:100%;max-width:none;height:auto;aspect-ratio:4 / 3;touch-action:none;user-select:none}
+    #lic-easy-art .easy-trash-target[hidden]{display:none!important}
+    #lic-easy-art .easy-trash-target{position:absolute;right:9px;bottom:9px;z-index:3;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      width:clamp(104px,31%,148px);height:clamp(100px,32%,138px);
+      gap:1px;border:4px dashed #9854c8;border-radius:22px;
+      background:rgba(250,228,255,.96);color:#582b89;pointer-events:none;
+      text-align:center;font-weight:900;box-shadow:0 3px 15px #4c217044;
+      transition:background .12s ease,transform .12s ease,border-color .12s ease;}
+    #lic-easy-art .easy-trash-target span{font-size:clamp(32px,9vw,50px);line-height:1.1}
+    #lic-easy-art .easy-trash-target strong{font-size:clamp(12px,3.4vw,18px);line-height:1.1}
+    #lic-easy-art .easy-trash-target small{font-size:clamp(9px,2.5vw,12px);line-height:1.2}
+    #lic-easy-art .easy-trash-target.easy-trash-hover{background:#ffe5a9;border-color:#d25c2f;
+      transform:scale(1.045)}
+    #lic-easy-art .easy-quick-help{display:flex;align-items:center;justify-content:space-between;
+      flex-wrap:wrap;gap:8px;margin-top:8px;padding:8px 2px;font-weight:850;font-size:13px}
+    #lic-easy-art #easy-undo-near{background:#fff3c8;border-color:#c692d4;min-height:48px}
+    #lic-easy-art #easy-delete-selected{background:#ffe5e7;border-color:#d65c83;min-height:48px}
+    #lic-easy-art .easy-cut-confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+      background:#fff7d9;padding:11px;border:2px solid #e5cb79;border-radius:15px;margin:8px 0}
+    #lic-easy-art .easy-cut-confirm[hidden]{display:none!important}
+    #lic-easy-art .easy-cut-confirm strong{width:100%}
+    #lic-easy-art #easy-cut-done{background:#d8f5e6;border-color:#51af86}
+    #lic-easy-art .easy-layer-picker{background:#fcf7ff;border:2px solid #ddc9ef;border-radius:14px;padding:10px;margin-top:10px}
+    #lic-easy-art .easy-layer-picker summary{font-weight:850;cursor:pointer}
+    #lic-easy-art .easy-layer-list{display:flex;flex-direction:column;gap:5px;max-height:195px;overflow:auto}
+    #lic-easy-art .easy-layer-list button{width:100%;text-align:left;min-height:43px;padding:7px 12px;font-size:13px}
+    #lic-easy-art .easy-layer-list button[aria-pressed=true]{background:#7653b8;color:#fff}
+    #lic-easy-art button:disabled{opacity:.48;cursor:default}
     #lic-easy-art #easy-status{color:#643e8b;font-size:13px;min-height:21px}
     #lic-easy-art .easy-selected{background:#f4eaff;border:2px solid #e0cdf7;padding:12px;border-radius:17px}
     #lic-easy-art .easy-selected button{flex:1 1 92px;font-size:12px}
@@ -174,13 +236,14 @@
   if (!ctx) return;
   const W = canvas.width, H = canvas.height;
   const items = [];
-  let selected = null, tool = 'move', interaction = null, draft = null;
+  let selected = null, tool = 'move', interaction = null, draft = null, pendingCut = null, zoom = 1;
   let history = [{pieces:[],scene:-1}], step = 0, changed = false;
   const message = s => { $('easy-status').textContent = s; };
   const hints = {
-    move:'👆 Tap a picture, sticker or drawn line and drag to move it!',
-    draw:'🖌️ Draw with your finger. Tap Move to pick up your new line.',
-    cut:'✂️ Drag a box around the part you want to lift. Now drag that piece!',
+    move:'✋ Tap and drag a picture or line to move it. Or choose it by name below!',
+    draw:'🖌️ Draw with your finger. Every new line can be moved separately!',
+    cut:'✂️ Draw a box, check the dotted preview, then press ✅ Done below.',
+    magic:'✨ Tap a coloured area to select it, check the preview, then press ✅ Done.',
     erase:'🧽 Rub on a picture or line to erase parts of it.',
     paint:'🌈 Pick a colour, then paint on the part you want to change (like hair).',
     fill:'🪣 Tap one coloured area of a picture to change that area. Works best on cartoons.'
@@ -203,7 +266,7 @@
     items.splice(0, items.length, ...cloneItems(snap.pieces));
     selected = null;
     interaction = null;
-    draft = null;
+    draft = null; pendingCut = null;
     updateSceneButtons(); controls(); render();
   }
   function chosen() { return items.find(o => o.id === selected); }
@@ -214,15 +277,64 @@
     $('easy-selected').hidden = !chosen();
     ui.querySelectorAll('.easy-swatch').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color === $('easy-color').value)));
     $('easy-undo').disabled = step <= 0;
+    $('easy-undo-near').disabled = step <= 0;
     $('easy-redo').disabled = step >= history.length - 1;
     $('easy-white').disabled = tool !== 'cut';
+    $('easy-delete-selected').disabled = !chosen();
+    $('easy-cut-confirm').hidden = !pendingCut;
+    $('easy-layer-count').textContent=String(items.length);
+    renderLayers();
+    const bin=$('easy-trash-target');
+    bin.hidden = !(tool==='move' && chosen());
+    if(bin.hidden) bin.classList.remove('easy-trash-hover');
   }
+  function renderLayers(){
+    const list=$('easy-layer-list');
+    list.replaceChildren();
+    if(!items.length){const p=document.createElement('p');p.className='easy-small';p.textContent='Upload a picture or draw a line and it will appear here.';list.append(p);return;}
+    for(let k=items.length-1;k>=0;k--){
+      const o=items[k],b=document.createElement('button');b.type='button';
+      b.textContent=(o.isLine?'🖌️ ':'🖼️ ')+(o.name||'Picture')+' — '+(k+1);
+      b.setAttribute('aria-pressed',String(o.id===selected));
+      b.addEventListener('click',()=>{selected=o.id;tool='move';pendingCut=null;draft=null;controls();render();
+        $('easy-canvas').scrollIntoView({block:'center',behavior:'smooth'});
+        message('✋ Grab '+o.name+' by dragging inside the dotted outline, or use the arrow buttons below.');});
+      list.append(b);
+    }
+  }
+  function updateZoom(old){
+    const wrap=ui.querySelector('.easy-canvas-wrap');
+    canvas.style.width=(100*zoom)+'%';
+    $('easy-zoom-level').textContent=Math.round(zoom*100)+'%';
+    wrap.scrollLeft=(wrap.scrollLeft+wrap.clientWidth/2)*(zoom/old)-wrap.clientWidth/2;
+    wrap.scrollTop=(wrap.scrollTop+wrap.clientHeight/2)*(zoom/old)-wrap.clientHeight/2;
+  }
+  $('easy-zoom-in').addEventListener('click',()=>{const old=zoom;zoom=Math.min(3,+(zoom+.5).toFixed(2));if(zoom!==old)updateZoom(old);});
+  $('easy-zoom-out').addEventListener('click',()=>{const old=zoom;zoom=Math.max(1,+(zoom-.5).toFixed(2));if(zoom!==old)updateZoom(old);});
+  $('easy-zoom-reset').addEventListener('click',()=>{zoom=1;canvas.style.width='100%';$('easy-zoom-level').textContent='100%';ui.querySelector('.easy-canvas-wrap').scrollTo(0,0);});
+  $('easy-grab').addEventListener('click',()=>setTool('move'));
+  $('easy-delete-selected').addEventListener('click',()=>{
+    const o=chosen();if(!o)return;
+    items.splice(items.findIndex(item=>item.id===o.id),1);
+    selected=null;pendingCut=null;checkpoint();controls();render();message('🗑️ Piece deleted. Tap Oops! Undo to bring it back.');
+  });
+  $('easy-cut-cancel').addEventListener('click',()=>{pendingCut=null;draft=null;controls();render();message('✂️ Cut cancelled. Your picture is unchanged.');});
+  $('easy-cut-done').addEventListener('click',()=>finishPendingCut());
   const makeId = () => Math.random().toString(36).slice(2);
   function makeCanvas(w,h){const c=document.createElement('canvas'); c.width=w; c.height=h; return c;}
   function pos(e){ const r=canvas.getBoundingClientRect(); return {
     x:(e.clientX-r.left)*W/r.width,
     y:(e.clientY-r.top)*H/r.height
   }; }
+  function overBin(e){
+    const bin=$('easy-trash-target');if(bin.hidden)return false;
+    const r=bin.getBoundingClientRect();
+    return e.clientX>=r.left && e.clientX<=r.right &&
+           e.clientY>=r.top && e.clientY<=r.bottom;
+  }
+  function showBinTarget(e){
+    $('easy-trash-target').classList.toggle('easy-trash-hover',!!e && overBin(e));
+  }
   function paintItem(o,context) {
     context.save(); context.translate(o.x,o.y); context.rotate(o.rot*Math.PI/180);
     context.drawImage(o.img,-o.w*o.scale/2,-o.h*o.scale/2,o.w*o.scale,o.h*o.scale);
@@ -246,16 +358,23 @@
       if (draft.length === 1) ctx.lineTo(draft[0].x+.2,draft[0].y+.2);
       ctx.stroke();ctx.restore();
     }
-    if (draft && tool==='cut' && draft.length===2) {
-      const a=draft[0],b=draft[1];
-      ctx.save();ctx.strokeStyle='#793fb4';ctx.lineWidth=3;ctx.setLineDash([10,8]);
+    if ((draft && tool==='cut' && draft.length===2) || (pendingCut && pendingCut.kind==='box')) {
+      const preview=(draft && tool==='cut' && draft.length===2)?draft:[pendingCut.a,pendingCut.b];
+      const a=preview[0],b=preview[1];
+      ctx.save();ctx.strokeStyle='#793fb4';ctx.lineWidth=4;ctx.setLineDash([10,8]);
       ctx.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y);ctx.restore();
+    }
+    if(pendingCut && pendingCut.kind==='magic' && pendingCut.preview){
+      ctx.save();ctx.globalAlpha=.6;ctx.drawImage(pendingCut.preview,0,0);ctx.restore();
     }
     const o=chosen();
     if (o && tool==='move') {
       ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.rot*Math.PI/180);
       ctx.setLineDash([9,7]);ctx.strokeStyle='#9255c6';ctx.lineWidth=3;
       ctx.strokeRect(-o.w*o.scale/2,-o.h*o.scale/2,o.w*o.scale,o.h*o.scale);
+      ctx.setLineDash([]);ctx.fillStyle='#fff';ctx.strokeStyle='#793fb4';ctx.lineWidth=3;
+      const rw=o.w*o.scale/2,rh=o.h*o.scale/2;
+      [[-rw,-rh],[rw,-rh],[-rw,rh],[rw,rh]].forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,8,0,Math.PI*2);ctx.fill();ctx.stroke();});
       ctx.restore();
     }
   }
@@ -264,7 +383,10 @@
     return {x:(dx*Math.cos(r)+dy*Math.sin(r))/o.scale+o.w/2,
             y:(-dx*Math.sin(r)+dy*Math.cos(r))/o.scale+o.h/2};
   }
+  function inside(o,p,pad=0){const v=local(o,p);return v.x>=-pad && v.x<o.w+pad && v.y>=-pad && v.y<o.h+pad;}
   function hit(p){
+    // A selected line can be grabbed anywhere within its dotted outline.
+    const sel=chosen(); if(tool==='move' && sel && inside(sel,p,7))return sel;
     for(let i=items.length-1;i>=0;i--){
       const o=items[i],v=local(o,p);
       if(v.x<0||v.x>=o.w||v.y<0||v.y>=o.h) continue;
@@ -281,6 +403,8 @@
         for(let k=3;k<a.length;k+=4)if(a[k]>28)return o;
       }
     }
+    // Forgiving fallback for transparent images and narrow drawn lines.
+    for(let i=items.length-1;i>=0;i--)if(inside(items[i],p,6))return items[i];
     return null;
   }
   function add(img,name) {
@@ -370,7 +494,7 @@
       add(c,$('easy-friend').selectedOptions[0].text);
     }catch(e){message('Character artwork unavailable. Please check your GitHub art sheet.');}
   });
-  function setTool(next) {tool=next;interaction=null;draft=null;controls();render();
+  function setTool(next) {tool=next;interaction=null;draft=null;pendingCut=null;controls();render();
     if((next==='paint'||next==='fill')&&!chosen())message('Tap Move and choose a picture first, then return to this tool.');
     else message(hints[next]);}
   ui.querySelectorAll('[data-easy-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.easyTool)));
@@ -427,7 +551,8 @@
     if(e.button!==undefined && e.button!==0) return;
     e.preventDefault();const p=pos(e);canvas.setPointerCapture(e.pointerId);
     if(tool==='draw'){draft=[p];interaction={kind:'draw'};render();return;}
-    if(tool==='cut'){draft=[p,p];interaction={kind:'cut'};render();return;}
+    if(tool==='cut'){pendingCut=null;draft=[p,p];interaction={kind:'cut'};controls();render();return;}
+    if(tool==='magic'){prepareMagicCut(p);return;}
     if(tool==='erase' || tool==='paint' || tool==='fill'){
       const hitItem=hit(p) || chosen();
       if(!hitItem){message('First tap Move and select a picture or line.');return;}
@@ -449,7 +574,10 @@
     if(interaction.kind==='draw'){draft.push(p);render();return;}
     if(interaction.kind==='cut'){draft[1]=p;render();return;}
     const o=items.find(x=>x.id===interaction.id);if(!o)return;
-    if(interaction.kind==='move'){o.x=p.x-interaction.x;o.y=p.y-interaction.y;render();}
+    if(interaction.kind==='move'){
+      o.x=p.x-interaction.x;o.y=p.y-interaction.y;
+      showBinTarget(e);render();
+    }
     if(interaction.kind==='erase'){brushErase(o,p);render();}
     if(interaction.kind==='paint'){brushColour(o,p);render();}
   });
@@ -502,20 +630,108 @@
     items[idx]={...original,img:world,w:W,h:H,scale:1,rot:0,x:W/2,y:H/2};
     const cut={id:makeId(),name:'Cut-out',img:piece,w,h,scale:1,rot:0,x:x+w/2,y:y+h/2};
     items.push(cut);selected=cut.id;tool='move';checkpoint();render();
-    message('✂️ Cut out! Drag this piece wherever you want.');
+    message('✂️ Got it! Grab that piece and drag it into the big bin 🗑️, or move it somewhere else.');
   }
-  canvas.addEventListener('pointerup',()=>{
+  function prepareMagicCut(p){
+    const original=hit(p);
+    if(!original){message('✨ Tap a coloured area of a picture first.');return;}
+    const world=makeCanvas(W,H),c=world.getContext('2d');paintItem(original,c);
+    const image=c.getImageData(0,0,W,H),data=image.data;
+    const x=Math.max(0,Math.min(W-1,Math.floor(p.x))),y=Math.max(0,Math.min(H-1,Math.floor(p.y)));
+    const first=(y*W+x)*4;
+    if(data[first+3]<20){message('Tap inside a visible coloured part.');return;}
+    const target=[data[first],data[first+1],data[first+2],data[first+3]];
+    const mask=new Uint8Array(W*H),visited=new Uint8Array(W*H),stack=[y*W+x];
+    const preview=makeCanvas(W,H),pc=preview.getContext('2d'),pd=pc.createImageData(W,H);
+    let minX=W,minY=H,maxX=-1,maxY=-1,count=0;
+    while(stack.length){
+      const n=stack.pop();if(n<0||n>=W*H||visited[n])continue;
+      visited[n]=1;const at=n*4;
+      const delta=Math.abs(data[at]-target[0])+Math.abs(data[at+1]-target[1])+Math.abs(data[at+2]-target[2]);
+      if(delta>105 || Math.abs(data[at+3]-target[3])>65 || data[at+3]<20)continue;
+      mask[n]=1;pd.data[at]=150;pd.data[at+1]=70;pd.data[at+2]=223;pd.data[at+3]=145;
+      const yy=Math.floor(n/W),xx=n%W;
+      if(xx<minX)minX=xx;if(xx>maxX)maxX=xx;if(yy<minY)minY=yy;if(yy>maxY)maxY=yy;
+      count++;
+      if(xx>0)stack.push(n-1);if(xx<W-1)stack.push(n+1);
+      if(yy>0)stack.push(n-W);if(yy<H-1)stack.push(n+W);
+    }
+    if(count<5){message('That area is tiny. Tap another coloured area or try Box Cut.');return;}
+    pc.putImageData(pd,0,0);
+    pendingCut={kind:'magic',originalId:original.id,mask,minX,minY,maxX,maxY,preview};
+    controls();render();message('✨ Purple shows your selection. Press ✅ Done to cut, or Cancel.');
+  }
+  function finishPendingCut(){
+    if(!pendingCut)return;
+    const pc=pendingCut;pendingCut=null;
+    if(pc.kind==='box')cutSelected(pc.a,pc.b);
+    else if(pc.kind==='magic'){
+      if(items.length>=45){message('Page is full. Save first.');controls();render();return;}
+      const original=items.find(o=>o.id===pc.originalId);
+      if(!original){message('That picture has changed. Please select again.');controls();render();return;}
+      const world=makeCanvas(W,H),c=world.getContext('2d');paintItem(original,c);
+      const image=c.getImageData(0,0,W,H),px=image.data;
+      const w=pc.maxX-pc.minX+1,h=pc.maxY-pc.minY+1;
+      const part=makeCanvas(w,h),partCtx=part.getContext('2d');
+      const partData=partCtx.createImageData(w,h);
+      for(let y=pc.minY;y<=pc.maxY;y++)for(let x=pc.minX;x<=pc.maxX;x++){
+        const n=y*W+x;if(!pc.mask[n])continue;
+        const si=n*4,di=((y-pc.minY)*w+(x-pc.minX))*4;
+        for(let k=0;k<4;k++)partData.data[di+k]=px[si+k];
+        px[si+3]=0;
+      }
+      partCtx.putImageData(partData,0,0);
+      c.putImageData(image,0,0);
+      const index=items.findIndex(o=>o.id===original.id);
+      items[index]={...original,img:world,w:W,h:H,scale:1,rot:0,x:W/2,y:H/2};
+      const cut={id:makeId(),name:'Tap cut piece',img:part,w,h,scale:1,rot:0,x:pc.minX+w/2,y:pc.minY+h/2};
+      items.push(cut);selected=cut.id;tool='move';checkpoint();render();
+      message('✨ Cut finished! Grab your new piece or use the arrow buttons below.');
+    }
+    controls();render();
+  }
+  canvas.addEventListener('pointerup',e=>{
     const i=interaction;interaction=null;if(!i)return;
     if(i.kind==='draw'){const points=draft;draft=null;if(points?.length)finishDraw(points);return;}
-    if(i.kind==='cut'){const points=draft;draft=null;if(points?.length===2)cutSelected(points[0],points[1]);return;}
+    if(i.kind==='cut'){
+      const points=draft;draft=null;
+      if(points?.length===2 && Math.hypot(points[0].x-points[1].x,points[0].y-points[1].y)>=12){
+        pendingCut={kind:'box',a:points[0],b:points[1]};controls();render();
+        message('✂️ Check the dotted box. Press ✅ Done to cut, or Cancel to keep the original.');
+      }else{render();message('Draw a bigger box. Nothing was cut.');}
+      return;
+    }
     if(i.kind==='erase'||i.kind==='paint'){
       checkpoint();render();message(i.kind==='paint'?'You changed the colour! 🌈':'Erased! Tap Undo if you want it back.');return;}
     if(i.kind==='move'){
-      const o=chosen();if(o&&(o.x!==i.startX||o.y!==i.startY))checkpoint();
-      render();if(o)message('Great moving! You can resize, turn or copy it below.');
+      const o=items.find(item=>item.id===i.id);
+      const distance=o?Math.hypot(o.x-i.startX,o.y-i.startY):0;
+      // Never throw something away from a simple tap: an actual drag into the bin is required.
+      if(o && distance>=18 && overBin(e)){
+        const index=items.findIndex(item=>item.id===i.id);
+        if(index>=0)items.splice(index,1);
+        selected=null;
+        checkpoint();controls();render();
+        message('🗑️ Into the bin! Need it back? Tap ↩️ Oops! Undo just below.');
+        return;
+      }
+      showBinTarget(null);
+      if(o){
+        // Don't let a lost finger outside the canvas permanently lose the piece.
+        const p=pos(e);
+        if(p.x<0||p.x>W||p.y<0||p.y>H){o.x=i.startX;o.y=i.startY;}
+        if(o.x!==i.startX||o.y!==i.startY)checkpoint();
+      }
+      render();if(o)message('Nice! Want to remove it? Grab and drop it into the big bin. 🗑️');
     }
   });
-  canvas.addEventListener('pointercancel',()=>{interaction=null;draft=null;render();});
+  canvas.addEventListener('pointercancel',()=>{
+    if(interaction?.kind==='move'){
+      const o=items.find(item=>item.id===interaction.id);
+      if(o){o.x=interaction.startX;o.y=interaction.startY;}
+    }
+    interaction=null;draft=null;showBinTarget(null);render();
+  });
   ui.querySelectorAll('[data-easy-act]').forEach(b=>b.addEventListener('click',()=>{
     const o=chosen();if(!o)return;
     const action=b.dataset.easyAct;
@@ -537,6 +753,10 @@
       });
     } else {
       const n={...o};
+      if(action==='up')n.y-=25;
+      if(action==='down')n.y+=25;
+      if(action==='moveleft')n.x-=25;
+      if(action==='moveright')n.x+=25;
       if(action==='smaller')n.scale=Math.max(.1,n.scale*.8);
       if(action==='bigger')n.scale=Math.min(8,n.scale*1.25);
       if(action==='left')n.rot-=15;
@@ -545,11 +765,13 @@
     }
     checkpoint();render();message('Looking cute! 💜 Keep creating.');
   }));
-  $('easy-undo').addEventListener('click',()=>{if(step>0)rollback(--step);});
+  function undo(){if(step>0){rollback(--step);message('↩️ Brought it back! 💜');}}
+  $('easy-undo').addEventListener('click',undo);
+  $('easy-undo-near').addEventListener('click',undo);
   $('easy-redo').addEventListener('click',()=>{if(step<history.length-1)rollback(++step);});
   $('easy-fresh').addEventListener('click',()=>{
     if(changed && !window.confirm('Start a new page? Save your picture first if you want to keep it.'))return;
-    items.length=0;scene=-1;history=[{pieces:[],scene:-1}];step=0;selected=null;changed=false;tool='move';updateSceneButtons();
+    items.length=0;scene=-1;history=[{pieces:[],scene:-1}];step=0;selected=null;changed=false;tool='move';pendingCut=null;zoom=1;canvas.style.width='100%';$('easy-zoom-level').textContent='100%';updateSceneButtons();
     controls();render();message('Fresh page! Add pictures or start drawing. 🦋');
   });
   $('easy-save').addEventListener('click',()=>{
