@@ -1,4 +1,4 @@
-/* Little Imagination Club — One Magical Art Studio 3.6 (gentle press-and-hold piece options), unified child-friendly touch editor
+/* Little Imagination Club — One Magical Art Studio 3.7 (all-in-one creations hub), unified child-friendly touch editor
  * Use instead of magic_workstation_v2.js: <script src="one_magical_studio.js"></script>
  * Editable projects autosave in this browser using IndexedDB. Manual PNG and project backups available.
  */
@@ -18,8 +18,8 @@
       <p class="easy-intro">One canvas, unlimited imagination! Start anywhere and mix it all together. 🦋🌈</p>
     </header>
     <div class="easy-creations-hub" id="easy-creations-hub">
-      <h4>📚 My Creations</h4>
-      <p class="easy-small">Your pictures and lines save automatically on this device. Return later to keep making them!</p>
+      <h4>📚 My Creations — Artwork, Stories & Books</h4>
+      <p class="easy-small">Your drawings and story drafts save on this device. Find everything here and carry on whenever you like!</p>
       <div class="easy-row">
         <button id="easy-my-creations" type="button">📂 See my creations</button>
         <button id="easy-new-creation" type="button">🌟 New creation</button>
@@ -29,6 +29,14 @@
       </div>
       <p id="easy-autosave-status" role="status" aria-live="polite">⏳ Checking saved creations…</p>
       <div id="easy-creations-library" hidden>
+        <label class="easy-creations-filter-label" for="easy-creations-filter">👀 Show me
+          <select id="easy-creations-filter" aria-label="Choose which creations to show">
+            <option value="all">🌈 Everything</option>
+            <option value="art">🎨 Drawings & pictures</option>
+            <option value="story">✏️ Story drafts</option>
+            <option value="book">📚 Storybooks</option>
+          </select>
+        </label>
         <div id="easy-creations-list"></div>
         <details id="easy-recently-deleted"><summary>🗑️ Recently Deleted</summary><div id="easy-deleted-list"></div></details>
         <p class="easy-small">Saved here on this device, not in an online account. Back up projects you want to keep. Clearing browser data or switching phones can remove local work.</p>
@@ -243,7 +251,11 @@
       overflow:auto;position:relative;max-height:75vh;min-width:0;width:100%}
     #lic-easy-art canvas{display:block;width:100%;max-width:none;height:auto;aspect-ratio:4 / 3;touch-action:none;user-select:none}
     #lic-easy-art .easy-bin-rail{display:flex;justify-content:center;align-items:center;min-width:0;align-self:stretch}
-    #lic-easy-art .easy-trash-target[hidden]{display:none!important}
+    #lic-easy-art .easy-creations-filter-label{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-weight:800;margin:12px 0}
+    #lic-easy-art .easy-creations-filter-label select{background:#fffdfd;color:#41306b;border:2px solid #d6b9ed;border-radius:14px;font:inherit;font-weight:700;padding:10px 12px;max-width:100%}
+    #lic-easy-art .easy-creation-actions button{min-height:44px}
+    #lic-easy-art .easy-book-pill{display:inline-block;font-size:.88em;background:#f0e6ff;border-radius:99px;padding:4px 10px;margin:4px 0}
+     #lic-easy-art .easy-trash-target[hidden]{display:none!important}
     #lic-easy-art .easy-trash-target{position:relative;
       display:flex;flex-direction:column;align-items:center;justify-content:center;
       width:100%;max-width:142px;min-height:118px;
@@ -1143,6 +1155,243 @@
     updateSceneButtons();controls();render();creationLoaded=true;
     autosaveStatus('🗑️ Previous project moved to Recently Deleted.');
   }
+  // The story editor uses the same IndexedDB project store as editable artwork.
+  // Previously completed books in lic_library_v1 are displayed without being modified.
+  const STORY_ACTIVE_KEY='lic_active_story_draft_v1';
+  const STORY_EMERGENCY_KEY='lic_story_text_recovery_v1';
+  const storyFieldIds=['club-title','club-author','club-description','club-writing','club-hero','club-place','club-quest'];
+  let storyId=makeId(),storyName='My Story',storyFinished=false,storyPicture=null;
+  let storyReady=false,storyRestore=false,storyDirtyBeforeReady=false,storyDirty=false,storyTouched=false;
+  let storyTimer=null,storySaveChain=Promise.resolve(),storySequence=0;
+  const storyForm=document.getElementById('club-title')?.closest('.creator-panel')||document.getElementById('create');
+  const storyStatus=document.createElement('p');storyStatus.id='lic-story-save-status';storyStatus.setAttribute('role','status');
+  storyStatus.setAttribute('aria-live','polite');storyStatus.className='easy-small';storyStatus.textContent='⏳ Getting your stories ready…';
+  function readStoryFields(){
+    const fields={};storyFieldIds.forEach(id=>{const el=document.getElementById(id);if(el)fields[id]=el.value;});
+    fields.mode=[...document.querySelectorAll('#create .creator-tabs [data-mode]')].find(el=>el.getAttribute('aria-pressed')==='true')?.dataset.mode||'drawing';
+    fields.pictures=[...document.querySelectorAll('#pic-picked .pic-page')].map(el=>({emoji:el.querySelector('span')?.textContent?.trim()||'',name:el.querySelector('strong')?.textContent?.trim()||''})).slice(0,8);
+    return fields;
+  }
+  // Restore the actual picture-page choices via the existing picture picker.
+  function restorePictureSelections(pics){
+    const search=document.getElementById('pic-search');
+    const grid=document.getElementById('pic-grid');
+    if(!search||!grid)return;
+    for(let n=0;n<10;n++){
+      const remove=document.querySelector('#pic-picked .pic-page button[aria-label="Remove picture"]');
+      if(!remove)break;
+      remove.click();
+    }
+    (Array.isArray(pics)?pics:[]).slice(0,8).forEach(pic=>{
+      const name=String(pic.name||'').replace(/^Page\s+\d+:\s*/, '').trim();
+      if(!name)return;
+      search.value=name;search.dispatchEvent(new Event('input',{bubbles:true}));
+      const tile=[...grid.querySelectorAll('.pic-tile')].find(el=>el.lastElementChild?.textContent?.trim()===name);
+      tile?.click();
+    });
+    search.value='';search.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  function storyHasWork(f){return !!(storyTouched||f['club-title']?.trim()||f['club-author']?.trim()||f['club-description']?.trim()||f['club-writing']?.trim()||storyPicture||storyFinished||f.pictures?.length);}
+  function storyEmergency(f){
+    try{localStorage.setItem(STORY_EMERGENCY_KEY,JSON.stringify({id:storyId,name:storyName,finished:storyFinished,fields:f,updated:Date.now()}));}catch(e){}
+  }
+  function storyFromEmergency(id){
+    try{const x=JSON.parse(localStorage.getItem(STORY_EMERGENCY_KEY)||'null');return x&&x.id===id?x:null;}catch(e){return null;}
+  }
+  function clearStoryEmergency(id){
+    try{const x=storyFromEmergency(id);if(x)localStorage.removeItem(STORY_EMERGENCY_KEY);}catch(e){}
+  }
+  function enqueueStorySave(){
+    if(storyRestore)return;
+    if(!storyReady){storyDirtyBeforeReady=true;return;}
+    storyTouched=true;storyDirty=true;
+    const fields=readStoryFields();
+    if(!storyHasWork(fields))return;
+    storyEmergency(fields);
+    clearTimeout(storyTimer);
+    storyStatus.textContent='⏳ Saving story…';
+    storyTimer=setTimeout(()=>{storyTimer=null;saveStoryNow();},220);
+  }
+  function saveStoryNow(){
+    clearTimeout(storyTimer);storyTimer=null;
+    if(!storyReady||!creationDB)return Promise.resolve();
+    if(!storyDirty)return storySaveChain;
+    const fields=readStoryFields();if(!storyHasWork(fields))return storySaveChain;
+    storyDirty=false;
+    const revision=++storySequence;
+    const record={id:storyId,type:'story',name:(fields['club-title']?.trim()||storyName||'My Story').slice(0,100),
+      fields,pictureBlob:storyPicture,finished:storyFinished,updated:Date.now(),deletedAt:null};
+    storySaveChain=storySaveChain.catch(()=>{}).then(async()=>{
+      await dbAction('put','readwrite',record);
+      if(revision===storySequence&&storyId===record.id){
+        clearStoryEmergency(record.id);storyName=record.name;
+        storyStatus.textContent='✅ Story saved automatically on this device';
+        if(creationsOpen)await renderCreationsHub();
+      }
+    }).catch(e=>{storyDirty=true;console.warn('Story save failed',e);storyStatus.textContent='⚠️ Story not fully saved. Device storage may be full — copy your writing somewhere safe.';});
+    return storySaveChain;
+  }
+  async function restoreStoryPicture(blob){
+    const upload=document.getElementById('club-upload');if(!upload||!blob)return;
+    try{
+      const dt=new DataTransfer();dt.items.add(new File([blob],'saved-story-picture.png',{type:blob.type||'image/png'}));
+      upload.files=dt.files;upload.dispatchEvent(new Event('change',{bubbles:true}));
+    }catch(e){
+      const notice=document.createElement('p');notice.className='easy-small';notice.textContent='📷 This story has a saved picture, but your browser may need you to choose it again before making the book.';
+      upload.after(notice);
+    }
+  }
+  async function openStory(record,skipSave=false){
+    if(!record)return;
+    if(!skipSave)await saveStoryNow();
+    storyRestore=true;
+    try{
+      storyId=record.id;storyName=record.name||'My Story';storyFinished=!!record.finished;
+      storyPicture=record.pictureBlob||null;storyTouched=true;storyDirty=false;
+      try{localStorage.setItem(STORY_ACTIVE_KEY,storyId);}catch(e){}
+      storyFieldIds.forEach(id=>{const el=document.getElementById(id);if(el)el.value=record.fields?.[id]??'';});
+      const wanted=record.fields?.mode||'drawing';
+      const modeButton=[...document.querySelectorAll('#create .creator-tabs [data-mode]')].find(b=>b.dataset.mode===wanted);
+      modeButton?.click();
+      restorePictureSelections(record.fields?.pictures);
+      if(storyPicture)await restoreStoryPicture(storyPicture);
+      else{const upload=document.getElementById('club-upload');if(upload)upload.value='';const art=document.getElementById('club-book-art');if(art){art.hidden=true;art.removeAttribute('src');}}
+      // Generate the existing book preview from saved fields; no new content is invented.
+      if(storyFinished&&document.getElementById('club-make'))document.getElementById('club-make').click();
+      else if(document.getElementById('club-preview'))document.getElementById('club-preview').hidden=true;
+      storyStatus.textContent='✅ Opened '+storyName+' — keep writing!';
+    }finally{storyRestore=false;}
+    document.getElementById('create')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  async function newStory(){
+    await saveStoryNow();storyRestore=true;
+    try{
+      storyId=makeId();storyName='My Story';storyFinished=false;storyPicture=null;storyTouched=false;storyDirty=false;storyTouched=false;storyDirty=false;
+      storyFieldIds.forEach(id=>{const el=document.getElementById(id);if(el){if(el.tagName==='SELECT')el.selectedIndex=0;else el.value='';}});
+      const upload=document.getElementById('club-upload');if(upload)upload.value='';
+      restorePictureSelections([]);
+      document.querySelector('#create .creator-tabs [data-mode="write"]')?.click();
+      if(document.getElementById('club-preview'))document.getElementById('club-preview').hidden=true;
+      try{localStorage.setItem(STORY_ACTIVE_KEY,storyId);}catch(e){}
+      storyStatus.textContent='✨ New story! Your earlier stories stay in My Creations.';
+    }finally{storyRestore=false;}
+    document.getElementById('club-title')?.focus();
+  }
+  function makeStoryCard(rec,isDeleted){
+    const card=document.createElement('article');card.className='easy-creation-card';
+    const title=document.createElement('p');title.className='easy-creation-title';
+    title.textContent=(rec.finished?'📖 ':'✏️ ')+(rec.name||'My Story');
+    const meta=document.createElement('p');meta.className='easy-creation-meta';
+    meta.textContent=(rec.finished?'Storybook':'Story draft')+' · '+new Date(rec.updated||Date.now()).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});
+    const actions=document.createElement('div');actions.className='easy-creation-actions';
+    const action=(label,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=label;
+      b.addEventListener('click',async()=>{b.disabled=true;try{await fn();}catch(e){console.warn(e);storyStatus.textContent='⚠️ Could not update this story.';}finally{b.disabled=false;}});actions.append(b);};
+    if(isDeleted){
+      action('↩️ Restore',async()=>{rec.deletedAt=null;rec.updated=Date.now();await dbAction('put','readwrite',rec);await renderCreationsHub();});
+      action('🗑️ Delete forever',async()=>{if(!confirm('Permanently remove this story? This cannot be undone.'))return;await dbAction('delete','readwrite',rec.id);await renderCreationsHub();});
+    }else{
+      action('✏️ Continue',async()=>{await openStory(rec);creationsOpen=false;document.getElementById('easy-creations-library').hidden=true;});
+      action('✏️ Rename',async()=>{
+        if(rec.id===storyId){await saveStoryNow();rec=await dbAction('get','readonly',rec.id)||rec;}
+        const next=prompt('Name your story:',rec.name||'My Story');if(!next||!next.trim())return;
+        rec.name=next.trim().slice(0,100);rec.fields={...(rec.fields||{}),'club-title':rec.name};
+        if(rec.id===storyId){storyName=rec.name;document.getElementById('club-title').value=rec.name;}
+        rec.updated=Date.now();await dbAction('put','readwrite',rec);await renderCreationsHub();
+      });
+      action('🧩 Copy',async()=>{
+        if(rec.id===storyId){await saveStoryNow();rec=await dbAction('get','readonly',rec.id)||rec;}
+        const copy={...rec,id:makeId(),name:(rec.name+' (copy)').slice(0,100),updated:Date.now(),deletedAt:null};
+        copy.fields={...(rec.fields||{}),'club-title':copy.name};await dbAction('put','readwrite',copy);await renderCreationsHub();
+      });
+      action('🗑️ Bin',async()=>{
+        if(!confirm('Move this story to Recently Deleted? You can restore it later.'))return;
+        if(rec.id===storyId){await saveStoryNow();rec=await dbAction('get','readonly',rec.id)||rec;}
+        rec.deletedAt=Date.now();await dbAction('put','readwrite',rec);
+        if(rec.id===storyId)await newStoryAfterDelete();
+        await renderCreationsHub();
+      });
+    }
+    card.append(title,meta,actions);return card;
+  }
+  async function newStoryAfterDelete(){
+    storyRestore=true;
+    storyId=makeId();storyName='My Story';storyFinished=false;storyPicture=null;
+    storyFieldIds.forEach(id=>{const el=document.getElementById(id);if(el){if(el.tagName==='SELECT')el.selectedIndex=0;else el.value='';}});
+    const upload=document.getElementById('club-upload');if(upload)upload.value='';
+    restorePictureSelections([]);
+    if(document.getElementById('club-preview'))document.getElementById('club-preview').hidden=true;
+    try{localStorage.setItem(STORY_ACTIVE_KEY,storyId);}catch(e){}
+    storyRestore=false;
+    storyStatus.textContent='🗑️ Story moved to Recently Deleted. You can restore it.';
+  }
+  function installStoryControls(){
+    if(!storyForm||!document.getElementById('club-writing'))return;
+    const row=document.createElement('div');row.className='easy-row';row.style.cssText='display:flex;flex-wrap:wrap;gap:9px;margin:12px 0';
+    const mk=(label,id,fn)=>{const b=document.createElement('button');b.type='button';b.id=id;b.textContent=label;
+      b.style.cssText='border:2px solid #d8cef8;border-radius:14px;padding:12px;background:#fff;color:#4b3478;font:inherit;font-weight:750;min-height:46px';
+      b.addEventListener('click',fn);row.append(b);return b;};
+    mk('📚 My Creations','lic-story-creations-shortcut',()=>openGlobalCreations());
+    mk('🌟 New story','lic-story-new',newStory);
+    mk('💾 Save story now','lic-story-save',()=>saveStoryNow());
+    row.append(storyStatus);
+    const actions=storyForm.querySelector('.creator-actions');
+    const tabs=storyForm.querySelector('.creator-tabs');
+    if(tabs)tabs.after(row);else storyForm.prepend(row);
+    // Add a navigation shortcut without changing the website index.html.
+    const nav=document.querySelector('.navlinks');
+    if(nav&&!nav.querySelector('[data-lic-my-creations]')){
+      const link=document.createElement('a');link.href='#easy-creations-hub';link.dataset.licMyCreations='true';
+      link.textContent='📚 My Creations';link.addEventListener('click',e=>{e.preventDefault();openGlobalCreations();});nav.append(link);
+    }
+    storyFieldIds.forEach(id=>document.getElementById(id)?.addEventListener('input',enqueueStorySave));
+    storyFieldIds.forEach(id=>document.getElementById(id)?.addEventListener('change',enqueueStorySave));
+    document.querySelectorAll('#create .creator-tabs [data-mode]').forEach(b=>b.addEventListener('click',()=>{
+      // mode setting is adjusted in the original story editor first.
+      setTimeout(enqueueStorySave,0);
+    }));
+    document.querySelector('.pic-panel')?.addEventListener('click',e=>{
+      if(!storyRestore&&e.target.closest('.pic-tile,#pic-picked button,#pic-clear'))setTimeout(enqueueStorySave,0);
+    });
+    document.getElementById('club-upload')?.addEventListener('change',e=>{
+      if(storyRestore)return;
+      const f=e.target.files?.[0];storyPicture=f&&f.size<=5*1024*1024&&/^image\//.test(f.type)?f:null;
+      enqueueStorySave();
+    });
+    document.getElementById('club-make')?.addEventListener('click',()=>{
+      if(storyRestore)return;
+      // Original story maker handles validation. Only label complete if preview exists.
+      setTimeout(()=>{if(!document.getElementById('club-preview')?.hidden){storyFinished=true;enqueueStorySave();}},0);
+    });
+    window.addEventListener('pagehide',()=>{if(storyReady){storyEmergency(readStoryFields());if(storyTimer)saveStoryNow();}});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&storyReady){storyEmergency(readStoryFields());if(storyTimer)saveStoryNow();}});
+    initialiseStory();
+  }
+  function openGlobalCreations(){
+    const fields=document.querySelector('#create .creator-fields');
+    if(fields?.hidden){document.querySelector('#create .creator-tabs [data-mode="write"]')?.click();fields.hidden=false;}
+    const picturePanel=document.getElementById('pic-panel');if(picturePanel)picturePanel.hidden=true;
+    if(!creationsOpen)document.getElementById('easy-my-creations')?.click();
+    document.getElementById('easy-creations-hub')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  async function initialiseStory(){
+    if(!creationDB){
+      // Wait briefly for the art studio's IndexedDB initialization.
+      for(let i=0;i<30&&!creationDB;i++)await new Promise(r=>setTimeout(r,50));
+    }
+    if(!creationDB){storyReady=true;storyStatus.textContent='⚠️ Full story saving is unavailable. Copy your writing somewhere safe.';return;}
+    let id='';try{id=localStorage.getItem(STORY_ACTIVE_KEY)||'';}catch(e){}
+    try{
+      const records=(await dbAction('all')).filter(r=>r.type==='story'&&!r.deletedAt).sort((a,b)=>(b.updated||0)-(a.updated||0));
+      if(storyDirtyBeforeReady){storyReady=true;enqueueStorySave();return;}
+      let rec=records.find(r=>r.id===id)||records[0];
+      const emergency=storyFromEmergency(rec?.id||id);
+      if(emergency&&(!rec||emergency.updated>(rec.updated||0)))rec={...(rec||{}),id:emergency.id,name:emergency.name,finished:emergency.finished,fields:emergency.fields,updated:emergency.updated};
+      if(rec){await openStory(rec,true);if(emergency)enqueueStorySave();}
+      else{try{localStorage.setItem(STORY_ACTIVE_KEY,storyId);}catch(e){}storyStatus.textContent='💜 Your story will save here as you write.';}
+      storyReady=true;
+    }catch(e){console.warn(e);storyReady=true;storyStatus.textContent='⚠️ Story storage is unavailable. Please copy your writing somewhere safe.';}
+  }
+  installStoryControls();
   function showStoryCards(holder){
     try{
       const books=JSON.parse(localStorage.getItem('lic_library_v1')||'[]');
@@ -1151,7 +1400,7 @@
       books.slice().reverse().forEach((book)=>{
         const card=document.createElement('article');card.className='easy-creation-card';
         const title=document.createElement('p');title.className='easy-creation-title';title.textContent='📖 '+(book.title||'My story');
-        const p=document.createElement('p');p.className='easy-creation-meta';p.textContent='Saved story — editable in My Little Library';
+        const p=document.createElement('p');p.className='easy-creation-meta';p.textContent='Earlier saved book — open it in My Little Library';
         const btn=document.createElement('button');btn.type='button';btn.textContent='✏️ Continue story';
         btn.addEventListener('click',()=>{
           // Let the existing book library handle editing, keeping its data intact.
@@ -1171,13 +1420,18 @@
     all.sort((a,b)=>(b.updated||0)-(a.updated||0));
     previewURLs.forEach(u=>URL.revokeObjectURL(u));previewURLs=[];
     const active=$('easy-creations-list'),deleted=$('easy-deleted-list');active.replaceChildren();deleted.replaceChildren();
-    const current=all.filter(o=>!o.deletedAt),discarded=all.filter(o=>!!o.deletedAt);
-    if(!current.length){const p=document.createElement('p');p.textContent='Your first masterpiece will appear here automatically as you create it.';active.append(p);}
-    current.forEach(o=>active.append(makeCreationCard(o,false)));
-    showStoryCards(active);
+    const kind=rec=>rec.type==='story'?(rec.finished?'book':'story'):'art';
+    const filter=$('easy-creations-filter')?.value||'all';
+    const match=rec=>filter==='all'||kind(rec)===filter;
+    const current=all.filter(o=>!o.deletedAt && match(o));
+    const discarded=all.filter(o=>!!o.deletedAt);
+    if(!current.length){const p=document.createElement('p');p.textContent='Nothing in this section yet. Keep creating and your work will appear here! 🦊';active.append(p);}
+    current.forEach(o=>active.append(o.type==='story'?makeStoryCard(o,false):makeCreationCard(o,false)));
+    if(filter==='all'||filter==='book')showStoryCards(active);
     if(!discarded.length){const p=document.createElement('p');p.textContent='The bin is empty. 🦊';deleted.append(p);}
-    discarded.forEach(o=>deleted.append(makeCreationCard(o,true)));
+    discarded.forEach(o=>deleted.append(o.type==='story'?makeStoryCard(o,true):makeCreationCard(o,true)));
   }
+  $('easy-creations-filter').addEventListener('change',()=>renderCreationsHub());
   $('easy-my-creations').addEventListener('click',async()=>{
     creationsOpen=!creationsOpen;
     $('easy-creations-library').hidden=!creationsOpen;
