@@ -1,6 +1,6 @@
-/* Little Imagination Club — One Magical Art Studio 3.3 (side bin, grab, cut preview, zoom), unified child-friendly touch editor
+/* Little Imagination Club — One Magical Art Studio 3.4 (editable autosave and My Creations), unified child-friendly touch editor
  * Use instead of magic_workstation_v2.js: <script src="one_magical_studio.js"></script>
- * All artwork remains in browser; saved copies download as PNG.
+ * Editable projects autosave in this browser using IndexedDB. Manual PNG and project backups available.
  */
 (() => {
   if (document.getElementById('lic-easy-art')) return;
@@ -17,6 +17,23 @@
       <h3>🦊💜 My ONE Magical Art Studio</h3>
       <p class="easy-intro">One canvas, unlimited imagination! Start anywhere and mix it all together. 🦋🌈</p>
     </header>
+    <div class="easy-creations-hub" id="easy-creations-hub">
+      <h4>📚 My Creations</h4>
+      <p class="easy-small">Your pictures and lines save automatically on this device. Return later to keep making them!</p>
+      <div class="easy-row">
+        <button id="easy-my-creations" type="button">📂 See my creations</button>
+        <button id="easy-new-creation" type="button">🌟 New creation</button>
+        <button id="easy-backup-project" type="button">⬇️ Backup project</button>
+        <label class="easy-backup-label" for="easy-import-project">⬆️ Restore backup</label>
+        <input id="easy-import-project" type="file" accept=".json,application/json" hidden>
+      </div>
+      <p id="easy-autosave-status" role="status" aria-live="polite">⏳ Checking saved creations…</p>
+      <div id="easy-creations-library" hidden>
+        <div id="easy-creations-list"></div>
+        <details id="easy-recently-deleted"><summary>🗑️ Recently Deleted</summary><div id="easy-deleted-list"></div></details>
+        <p class="easy-small">Saved here on this device, not in an online account. Back up projects you want to keep. Clearing browser data or switching phones can remove local work.</p>
+      </div>
+    </div>
     <h4 class="easy-step">💖 1. What would you like to create?</h4>
     <div class="easy-choices" aria-label="Choose how to start">
       <label class="easy-choice easy-file">🖼️<strong>My pictures</strong><small>Upload one or lots</small>
@@ -146,6 +163,20 @@
       border-radius:20px;padding:15px 12px;text-align:center;margin:0 0 14px}
     #lic-easy-art .easy-eyebrow{font-size:11px;letter-spacing:.05em;color:#8054ab;font-weight:850}
     #lic-easy-art .easy-step{background:#fff9ff;border-radius:14px;padding:10px 12px}
+    #lic-easy-art .easy-creations-hub{background:#fff;border:2px solid #d6b6eb;border-radius:19px;padding:13px;margin:14px 0}
+    #lic-easy-art .easy-creations-hub h4{margin:0 0 8px;font-size:1.13rem}
+    #lic-easy-art #easy-autosave-status{font-size:13px;font-weight:800;color:#6743a7;margin:9px 0}
+    #lic-easy-art #easy-creations-library[hidden]{display:none!important}
+    #lic-easy-art #easy-creations-list,#lic-easy-art #easy-deleted-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px;margin:10px 0}
+    #lic-easy-art .easy-creation-card{border:2px solid #efe1fa;background:#fffafc;border-radius:14px;padding:9px;min-width:0}
+    #lic-easy-art .easy-creation-card img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#fff;border-radius:9px;display:block}
+    #lic-easy-art .easy-creation-title{font-weight:850;margin:6px 0 3px;overflow-wrap:anywhere}
+    #lic-easy-art .easy-creation-meta{font-size:12px;color:#716180}
+    #lic-easy-art .easy-creation-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+    #lic-easy-art .easy-creation-actions button{font-size:12px;min-height:42px;padding:7px 9px;flex:1 1 67px}
+    #lic-easy-art #easy-recently-deleted{border-top:1px solid #ebdaf4;padding-top:11px;margin-top:10px}
+    #lic-easy-art #easy-recently-deleted summary{font-weight:800;cursor:pointer}
+    #lic-easy-art .easy-backup-label{display:inline-flex;align-items:center;justify-content:center;background:#fff;border:2px solid #dabdf1;border-radius:15px;padding:12px;font-size:14px;font-weight:800;min-height:48px;cursor:pointer}
     #lic-easy-art .easy-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
     #lic-easy-art .easy-choices .easy-choice{display:flex;align-items:center;justify-content:center;
       flex-direction:column;gap:5px;min-height:120px;padding:10px 3px;font-size:27px;
@@ -270,6 +301,7 @@
     step = history.length-1;
     changed = true;
     controls();
+    queueCreationSave();
   }
   function rollback(n) {
     const snap = history[n];
@@ -279,6 +311,7 @@
     interaction = null;
     draft = null; pendingCut = null;
     updateSceneButtons(); controls(); render();
+    queueCreationSave();
   }
   function chosen() { return items.find(o => o.id === selected); }
   function controls() {
@@ -776,15 +809,265 @@
     }
     checkpoint();render();message('Looking cute! 💜 Keep creating.');
   }));
+  // ---- My Creations: editable artwork, saved on this device ----
+  const CREATIONS_DB='lic_editable_creations_v1';
+  const ACTIVE_KEY='lic_active_creation_v1';
+  const imageBlobCache=new WeakMap();
+  let creationId=makeId(), creationName='My Masterpiece', creationLoaded=false;
+  let creationTimer=null, creationSaveChain=Promise.resolve(), creationRevision=0;
+  let creationDB=null, creationsOpen=false;
+  let previewURLs=[];
+  const autosaveStatus=s=>$('easy-autosave-status').textContent=s;
+  function openCreationsDB(){return new Promise((resolve,reject)=>{
+    if(!('indexedDB' in window)){reject(new Error('No IndexedDB'));return;}
+    const req=indexedDB.open(CREATIONS_DB,1);
+    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('projects'))req.result.createObjectStore('projects',{keyPath:'id'});};
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||new Error('Cannot open storage'));
+    req.onblocked=()=>reject(new Error('Storage is busy'));
+  });}
+  function dbAction(type,mode='readonly',data){return new Promise((resolve,reject)=>{
+    if(!creationDB){reject(new Error('Storage unavailable'));return;}
+    let result,tx;
+    try{
+      tx=creationDB.transaction('projects',mode);
+      const store=tx.objectStore('projects');
+      const req=type==='all'?store.getAll():type==='get'?store.get(data):type==='put'?store.put(data):store.delete(data);
+      req.onsuccess=()=>{result=req.result;};
+      req.onerror=()=>reject(req.error||new Error('Storage failed'));
+      tx.oncomplete=()=>resolve(result);
+      tx.onerror=()=>reject(tx.error||new Error('Storage failed'));
+      tx.onabort=()=>reject(tx.error||new Error('Storage failed'));
+    }catch(e){reject(e);}
+  });}
+  function imageBlob(img){
+    if(imageBlobCache.has(img))return imageBlobCache.get(img);
+    const pending=new Promise((resolve,reject)=>{
+      try{
+        const c=makeCanvas(img.width||img.naturalWidth,img.height||img.naturalHeight);
+        c.getContext('2d').drawImage(img,0,0);
+        c.toBlob(b=>b?resolve(b):reject(new Error('Could not save picture')),'image/png');
+      }catch(e){reject(e);}
+    });
+    imageBlobCache.set(img,pending);
+    return pending;
+  }
+  function previewBlob(){return new Promise((resolve,reject)=>{
+    try{
+      const c=makeCanvas(240,180),cx=c.getContext('2d');
+      cx.scale(240/W,180/H);paintBackground(cx);items.forEach(o=>paintItem(o,cx));
+      c.toBlob(b=>b?resolve(b):reject(new Error('Could not save preview')),'image/jpeg',.76);
+    }catch(e){reject(e);}
+  });}
+  function queueCreationSave(){
+    if(!creationLoaded||!creationDB)return;
+    clearTimeout(creationTimer);
+    autosaveStatus('⏳ Saving your masterpiece…');
+    creationTimer=setTimeout(()=>{creationTimer=null;saveCreationNow();},280);
+  }
+  function saveCreationNow(){
+    clearTimeout(creationTimer);creationTimer=null;
+    if(!creationLoaded||!creationDB)return Promise.resolve();
+    if(!items.length && scene===-1 && !changed)return creationSaveChain;
+    const revision=++creationRevision;
+    // Capture layer positions right away; PNG blobs are cached while layers stay unchanged.
+    const snapshotPieces=items.map(o=>({id:o.id,name:o.name||'Picture',w:o.w,h:o.h,x:o.x,y:o.y,scale:o.scale,rot:o.rot,isLine:!!o.isLine,img:o.img}));
+    const captured={id:creationId,name:creationName,scene,updated:Date.now(),deletedAt:null};
+    const thumbnail=previewBlob();
+    creationSaveChain=creationSaveChain.catch(()=>{}).then(async()=>{
+      const layers=await Promise.all(snapshotPieces.map(async o=>({id:o.id,name:o.name,w:o.w,h:o.h,x:o.x,y:o.y,scale:o.scale,rot:o.rot,isLine:o.isLine,blob:await imageBlob(o.img)})));
+      const record={...captured,layers,thumbnail:await thumbnail};
+      await dbAction('put','readwrite',record);
+      if(revision===creationRevision && creationId===record.id){
+        autosaveStatus('✅ Saved automatically on this device');
+        if(creationsOpen)await renderCreationsHub();
+      }
+    }).catch(e=>{
+      console.warn('Local creation save failed',e);
+      if(revision===creationRevision)autosaveStatus('⚠️ Not saved — device storage may be full or blocked. Try Backup project or Save my picture.');
+    });
+    return creationSaveChain;
+  }
+  function rememberActive(){try{localStorage.setItem(ACTIVE_KEY,creationId);}catch(e){}}
+  async function blobToImage(blob){
+    const url=URL.createObjectURL(blob);
+    try{return await readImage(url);}finally{URL.revokeObjectURL(url);}
+  }
+  async function openCreation(record,skipSave=false){
+    if(!record)return;
+    if(!skipSave)await saveCreationNow();
+    if(record.id===creationId){record=await dbAction('get','readonly',record.id)||record;}
+    creationLoaded=false;
+    try{
+      const restored=await Promise.all((record.layers||[]).map(async o=>({...o,img:await blobToImage(o.blob)})));
+      items.splice(0,items.length,...restored);
+      scene=Number.isInteger(record.scene)?record.scene:-1;
+      creationId=record.id;creationName=record.name||'My Masterpiece';rememberActive();
+      history=[snapshot()];step=0;selected=null;interaction=null;draft=null;pendingCut=null;tool='move';changed=false;
+      zoom=1;canvas.style.width='100%';$('easy-zoom-level').textContent='100%';
+      updateSceneButtons();controls();render();
+      autosaveStatus('✅ Restored '+creationName+' — ready to continue!');
+      message('💜 Welcome back! Your pictures, separate lines and positions are ready.');
+    }catch(e){console.warn(e);autosaveStatus('⚠️ Could not open this saved picture. Your other creations have not been deleted.');}
+    finally{creationLoaded=true;}
+  }
+  async function freshCreation(){
+    await saveCreationNow();
+    creationLoaded=false;
+    creationId=makeId();creationName='My Masterpiece';rememberActive();
+    items.length=0;scene=-1;history=[{pieces:[],scene:-1}];step=0;selected=null;
+    changed=false;tool='move';pendingCut=null;draft=null;interaction=null;
+    zoom=1;canvas.style.width='100%';$('easy-zoom-level').textContent='100%';
+    updateSceneButtons();controls();render();creationLoaded=true;
+    autosaveStatus('🌟 New page! Your earlier masterpieces remain in My Creations.');
+    message('Fresh page! Your old project is safe in My Creations. 🦋');
+    if(creationsOpen)renderCreationsHub();
+  }
+  function makeCreationCard(rec,isDeleted){
+    const card=document.createElement('article');card.className='easy-creation-card';
+    if(rec.thumbnail instanceof Blob){
+      const preview=document.createElement('img');preview.alt='Preview of '+(rec.name||'artwork');
+      const url=URL.createObjectURL(rec.thumbnail);previewURLs.push(url);preview.src=url;card.append(preview);
+    }
+    const title=document.createElement('p');title.className='easy-creation-title';title.textContent='🎨 '+(rec.name||'My Masterpiece');
+    const meta=document.createElement('div');meta.className='easy-creation-meta';
+    meta.textContent=(rec.deletedAt?'Removed ':'Saved ')+new Date(rec.deletedAt||rec.updated).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});
+    card.append(title,meta);
+    const actions=document.createElement('div');actions.className='easy-creation-actions';
+    function action(label,fn){const b=document.createElement('button');b.type='button';b.textContent=label;b.addEventListener('click',async()=>{b.disabled=true;try{await fn();}catch(e){console.warn(e);autosaveStatus('⚠️ Could not change this project.');}finally{b.disabled=false;}});actions.append(b);}
+    if(isDeleted){
+      action('↩️ Restore',async()=>{rec.deletedAt=null;rec.updated=Date.now();await dbAction('put','readwrite',rec);await renderCreationsHub();});
+      action('🗑️ Forever',async()=>{if(!confirm('Permanently delete this creation? This cannot be undone.'))return;await dbAction('delete','readwrite',rec.id);await renderCreationsHub();});
+    }else{
+      action('✏️ Continue',async()=>{await openCreation(rec);creationsOpen=false;$('easy-creations-library').hidden=true;$('easy-canvas').scrollIntoView({block:'center',behavior:'smooth'});});
+      action('✏️ Rename',async()=>{
+        if(rec.id===creationId){await saveCreationNow();rec=await dbAction('get','readonly',rec.id)||rec;}
+        const name=prompt('Give your masterpiece a name:',rec.name||'My Masterpiece');
+        if(!name||!name.trim())return;rec.name=name.trim().slice(0,70);rec.updated=Date.now();
+        if(rec.id===creationId)creationName=rec.name;
+        await dbAction('put','readwrite',rec);await renderCreationsHub();
+      });
+      action('🧩 Copy',async()=>{if(rec.id===creationId){await saveCreationNow();rec=await dbAction('get','readonly',rec.id)||rec;}
+        const copy={...rec,id:makeId(),name:(rec.name||'My Masterpiece')+' (copy)',updated:Date.now(),deletedAt:null};
+        await dbAction('put','readwrite',copy);await renderCreationsHub();
+      });
+      action('🗑️ Bin',async()=>{
+        if(!confirm('Move this masterpiece to Recently Deleted? You can restore it later.'))return;
+        if(rec.id===creationId){await saveCreationNow();rec=await dbAction('get','readonly',rec.id)||rec;}
+        rec.deletedAt=Date.now();await dbAction('put','readwrite',rec);
+        if(rec.id===creationId)await freshCreationAfterDelete();
+        await renderCreationsHub();
+      });
+    }
+    card.append(actions);return card;
+  }
+  async function freshCreationAfterDelete(){
+    creationLoaded=false;creationId=makeId();creationName='My Masterpiece';rememberActive();
+    items.length=0;scene=-1;history=[{pieces:[],scene:-1}];step=0;selected=null;
+    changed=false;tool='move';pendingCut=null;draft=null;interaction=null;
+    updateSceneButtons();controls();render();creationLoaded=true;
+    autosaveStatus('🗑️ Previous project moved to Recently Deleted.');
+  }
+  function showStoryCards(holder){
+    try{
+      const books=JSON.parse(localStorage.getItem('lic_library_v1')||'[]');
+      if(!Array.isArray(books)||!books.length)return;
+      const h=document.createElement('h4');h.textContent='📖 My saved stories';holder.append(h);
+      books.slice().reverse().forEach((book)=>{
+        const card=document.createElement('article');card.className='easy-creation-card';
+        const title=document.createElement('p');title.className='easy-creation-title';title.textContent='📖 '+(book.title||'My story');
+        const p=document.createElement('p');p.className='easy-creation-meta';p.textContent='Saved story — editable in My Little Library';
+        const btn=document.createElement('button');btn.type='button';btn.textContent='✏️ Continue story';
+        btn.addEventListener('click',()=>{
+          // Let the existing book library handle editing, keeping its data intact.
+          const cards=[...document.querySelectorAll('#lib-items .lib-item')];
+          const ordered=books.slice().reverse();const index=ordered.findIndex(b=>b.id===book.id);
+          const edit=cards[index]?.querySelectorAll('button')[1];
+          if(edit){edit.click();document.getElementById('club-library')?.scrollIntoView({behavior:'smooth'});}
+          else document.getElementById('club-library')?.scrollIntoView({behavior:'smooth'});
+        });
+        card.append(title,p,btn);holder.append(card);
+      });
+    }catch(e){console.warn('Saved books preview failed',e);}
+  }
+  async function renderCreationsHub(){
+    if(!creationDB||!creationsOpen)return;
+    const all=await dbAction('all');
+    all.sort((a,b)=>(b.updated||0)-(a.updated||0));
+    previewURLs.forEach(u=>URL.revokeObjectURL(u));previewURLs=[];
+    const active=$('easy-creations-list'),deleted=$('easy-deleted-list');active.replaceChildren();deleted.replaceChildren();
+    const current=all.filter(o=>!o.deletedAt),discarded=all.filter(o=>!!o.deletedAt);
+    if(!current.length){const p=document.createElement('p');p.textContent='Your first masterpiece will appear here automatically as you create it.';active.append(p);}
+    current.forEach(o=>active.append(makeCreationCard(o,false)));
+    showStoryCards(active);
+    if(!discarded.length){const p=document.createElement('p');p.textContent='The bin is empty. 🦊';deleted.append(p);}
+    discarded.forEach(o=>deleted.append(makeCreationCard(o,true)));
+  }
+  $('easy-my-creations').addEventListener('click',async()=>{
+    creationsOpen=!creationsOpen;
+    $('easy-creations-library').hidden=!creationsOpen;
+    if(creationsOpen){await saveCreationNow();await renderCreationsHub();}
+  });
+  $('easy-new-creation').addEventListener('click',freshCreation);
+  async function blobAsDataURL(blob){return new Promise((resolve,reject)=>{
+    const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.readAsDataURL(blob);
+  });}
+  $('easy-backup-project').addEventListener('click',async()=>{
+    await saveCreationNow();
+    if(!creationDB){autosaveStatus('⚠️ Automatic storage unavailable. Use Save my picture to download a PNG.');return;}
+    const record=await dbAction('get','readonly',creationId);
+    if(!record){autosaveStatus('Add a picture or line before backing up.');return;}
+    try{
+      const layers=await Promise.all(record.layers.map(async o=>({...o,blob:await blobAsDataURL(o.blob)})));
+      const data={format:'lic-editable-project-v1',name:record.name,scene:record.scene,layers};
+      const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
+      const a=document.createElement('a');a.href=url;a.download='my-magical-project-backup.json';document.body.append(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
+      autosaveStatus('⬇️ Editable backup downloaded. Keep it somewhere safe!');
+    }catch(e){console.warn(e);autosaveStatus('⚠️ Could not make backup. Try Save my picture instead.');}
+  });
+  $('easy-import-project').addEventListener('change',async e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    try{
+      if(file.size>65*1024*1024)throw new Error('Backup too big');
+      const data=JSON.parse(await file.text());
+      if(data?.format!=='lic-editable-project-v1'||!Array.isArray(data.layers)||data.layers.length>45)throw new Error('Invalid backup');
+      const layers=await Promise.all(data.layers.map(async o=>{
+        if(!o||typeof o.blob!=='string'||!o.blob.startsWith('data:image/png;base64,')||o.blob.length>20*1024*1024)throw new Error('Invalid image');
+        const blob=await (await fetch(o.blob)).blob();
+        return {id:String(o.id||makeId()),name:String(o.name||'Picture').slice(0,100),blob,
+          w:Number(o.w)||100,h:Number(o.h)||100,x:Number(o.x)||400,y:Number(o.y)||300,
+          scale:Number(o.scale)||1,rot:Number(o.rot)||0,isLine:!!o.isLine};
+      }));
+      await saveCreationNow();
+      const record={id:makeId(),name:String(data.name||'Restored project').slice(0,70),scene:Number.isInteger(data.scene)?data.scene:-1,layers,updated:Date.now(),deletedAt:null};
+      await dbAction('put','readwrite',record);
+      await openCreation(record,true);await renderCreationsHub();
+      autosaveStatus('✅ Editable project restored into My Creations!');
+    }catch(err){console.warn(err);autosaveStatus('⚠️ This backup could not be opened. Please choose an exported project JSON.');}
+    finally{e.target.value='';}
+  });
+  async function initialiseCreations(){
+    try{
+      creationDB=await openCreationsDB();
+      const all=(await dbAction('all')).filter(o=>!o.deletedAt).sort((a,b)=>(b.updated||0)-(a.updated||0));
+      let lastId='';try{lastId=localStorage.getItem(ACTIVE_KEY)||'';}catch(e){}
+      const existing=all.find(o=>o.id===lastId)||all[0];
+      if(existing)await openCreation(existing,true);
+      else{creationLoaded=true;rememberActive();autosaveStatus('💜 Auto-save is ready. Start creating!');}
+    }catch(e){creationLoaded=false;console.warn('Auto-save not available:',e);
+      autosaveStatus('⚠️ Automatic saving unavailable on this browser. Download finished PNG pictures regularly.');
+    }
+  }
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveCreationNow();});
+  window.addEventListener('pagehide',()=>{if(creationTimer)saveCreationNow();});
+  // ---- end My Creations ----
+
   function undo(){if(step>0){rollback(--step);message('↩️ Brought it back! 💜');}}
   $('easy-undo').addEventListener('click',undo);
   $('easy-undo-near').addEventListener('click',undo);
   $('easy-redo').addEventListener('click',()=>{if(step<history.length-1)rollback(++step);});
-  $('easy-fresh').addEventListener('click',()=>{
-    if(changed && !window.confirm('Start a new page? Save your picture first if you want to keep it.'))return;
-    items.length=0;scene=-1;history=[{pieces:[],scene:-1}];step=0;selected=null;changed=false;tool='move';pendingCut=null;zoom=1;canvas.style.width='100%';$('easy-zoom-level').textContent='100%';updateSceneButtons();
-    controls();render();message('Fresh page! Add pictures or start drawing. 🦋');
-  });
+  $('easy-fresh').addEventListener('click',freshCreation);
   $('easy-save').addEventListener('click',()=>{
     const image=makeCanvas(W,H),out=image.getContext('2d');paintBackground(out);
     items.forEach(o=>paintItem(o,out));
@@ -793,4 +1076,5 @@
     message('💜 Saved a copy! Your original pictures remain unchanged.');
   });
   controls();render();
+  initialiseCreations();
 })();
