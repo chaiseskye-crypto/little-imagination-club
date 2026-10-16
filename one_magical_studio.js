@@ -1,4 +1,4 @@
-/* Little Imagination Club — One Magical Art Studio 3.5 (continuous drawing and instant-recovery autosave), unified child-friendly touch editor
+/* Little Imagination Club — One Magical Art Studio 3.6 (gentle press-and-hold piece options), unified child-friendly touch editor
  * Use instead of magic_workstation_v2.js: <script src="one_magical_studio.js"></script>
  * Editable projects autosave in this browser using IndexedDB. Manual PNG and project backups available.
  */
@@ -107,8 +107,19 @@
         </div>
       </div>
     </div>
+    <p class="easy-small easy-piece-hint">👆 To change a picture or line, press and hold it for a moment. Or tap ✋ Grab, then tap the piece.</p>
+    <div class="easy-piece-menu" id="easy-piece-menu" hidden>
+      <strong id="easy-piece-name">✨ What would you like to do with this piece?</strong>
+      <div class="easy-piece-choices">
+        <button id="easy-piece-move" type="button">✋ Move</button>
+        <button id="easy-piece-copy" type="button">🧩 Copy</button>
+        <button id="easy-piece-show-bin" type="button">🗑️ Show bin</button>
+        <button id="easy-piece-delete" type="button">❌ Throw away</button>
+        <button id="easy-piece-cancel" type="button">✅ Done</button>
+      </div>
+    </div>
     <div class="easy-quick-help">
-      <button id="easy-delete-selected" type="button">🗑️ Bin selected piece</button>
+      <button id="easy-delete-selected" type="button" hidden>🧩 Piece options</button>
       <button id="easy-undo-near" type="button">↩️ Oops! Undo</button>
       <button id="easy-save-now" type="button">💾 Save now</button>
     </div>
@@ -124,7 +135,7 @@
       <div id="easy-layer-list" class="easy-layer-list"></div>
     </details>
     <p id="easy-status" role="status">Ready for your next masterpiece! 💜</p>
-    <div class="easy-selected" id="easy-selected">
+    <div class="easy-selected" id="easy-selected" hidden>
       <h4>✨ Change the selected picture or line</h4>
       <p class="easy-small">Grab and drag it, or use the arrow buttons below. Resize, rotate or change its layer.</p>
       <div class="easy-row">
@@ -225,8 +236,9 @@
     #lic-easy-art .easy-canvas-toolbar button{padding:8px;min-height:45px;flex:1 0 64px}
     #lic-easy-art .easy-canvas-toolbar strong{font-size:13px;flex:0 0 45px;text-align:center}
     /* The bin sits in its own rail BESIDE the drawing: it never covers artwork. */
-    #lic-easy-art .easy-workspace-layout{display:grid;grid-template-columns:minmax(0,1fr) clamp(68px,20%,142px);
+    #lic-easy-art .easy-workspace-layout{display:grid;grid-template-columns:minmax(0,1fr);
       gap:8px;align-items:center;width:100%;min-width:0}
+    #lic-easy-art .easy-workspace-layout.easy-bin-open{grid-template-columns:minmax(0,1fr) clamp(68px,20%,142px)}
     #lic-easy-art .easy-canvas-wrap{border:3px solid #d7b6eb;background:white;border-radius:20px;
       overflow:auto;position:relative;max-height:75vh;min-width:0;width:100%}
     #lic-easy-art canvas{display:block;width:100%;max-width:none;height:auto;aspect-ratio:4 / 3;touch-action:none;user-select:none}
@@ -251,7 +263,18 @@
     #lic-easy-art #easy-undo-near{background:#fff3c8;border-color:#c692d4;min-height:48px}
     #lic-easy-art #easy-save-now{background:#dff6e9;border-color:#63ac88;min-height:48px}
     #lic-easy-art .easy-near-save-status{font-size:13px;font-weight:800;color:#6743a7;margin:9px 2px 12px;line-height:1.45}
-    #lic-easy-art #easy-delete-selected{background:#ffe5e7;border-color:#d65c83;min-height:48px}
+    #lic-easy-art #easy-delete-selected{background:#f0e5ff;border-color:#aa85d4;min-height:48px}
+    #lic-easy-art #easy-delete-selected[hidden]{display:none!important}
+    #lic-easy-art .easy-piece-hint{font-size:13px;line-height:1.5;margin:9px 0}
+    #lic-easy-art .easy-piece-menu{background:#fffdf9;border:2px solid #ab81d7;
+       padding:11px;border-radius:17px;margin:11px 0;box-shadow:0 5px 13px #55337817}
+    #lic-easy-art .easy-piece-menu[hidden]{display:none!important}
+    #lic-easy-art .easy-piece-menu strong{display:block;margin-bottom:9px;font-size:14px}
+    #lic-easy-art .easy-piece-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+    #lic-easy-art .easy-piece-choices button{min-height:51px;font-size:14px;white-space:normal;padding:7px}
+    #lic-easy-art #easy-piece-delete{background:#ffe7e9;border-color:#d65c83}
+    #lic-easy-art #easy-piece-cancel{background:#e6f8ef;border-color:#68b593}
+    @media(max-width:385px){#lic-easy-art .easy-workspace-layout.easy-bin-open{gap:5px;grid-template-columns:minmax(0,1fr) 66px}}
     #lic-easy-art .easy-cut-confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
       background:#fff7d9;padding:11px;border:2px solid #e5cb79;border-radius:15px;margin:8px 0}
     #lic-easy-art .easy-cut-confirm[hidden]{display:none!important}
@@ -283,10 +306,12 @@
   const W = canvas.width, H = canvas.height;
   const items = [];
   let selected = null, tool = 'move', interaction = null, draft = null, pendingCut = null, zoom = 1;
+  let showDropBin=false, pieceMenuOpen=false, holdTimer=null, holdPointer=null;
+  const cancelHold=()=>{if(holdTimer!==null)clearTimeout(holdTimer);holdTimer=null;holdPointer=null;};
   let history = [{pieces:[],scene:-1}], step = 0, changed = false;
   const message = s => { $('easy-status').textContent = s; };
   const hints = {
-    move:'✋ Tap and drag a picture or line to move it. Or choose it by name below!',
+    move:'✋ Drag to move. Hold a picture or line for options — nothing is thrown away automatically!',
     draw:'🖌️ Draw with your finger. Every new line can be moved separately!',
     cut:'✂️ Draw a box, check the dotted preview, then press ✅ Done below.',
     magic:'✨ Tap a coloured area to select it, check the preview, then press ✅ Done.',
@@ -329,12 +354,16 @@
     $('easy-undo-near').disabled = step <= 0;
     $('easy-redo').disabled = step >= history.length - 1;
     $('easy-white').disabled = tool !== 'cut';
-    $('easy-delete-selected').disabled = !chosen();
+    if(!chosen()) {pieceMenuOpen=false;showDropBin=false;}
+    $('easy-delete-selected').hidden = !chosen();
+    $('easy-piece-menu').hidden = !(chosen() && pieceMenuOpen);
+    if(chosen())$('easy-piece-name').textContent='✨ '+(chosen().name||'This piece')+' — what would you like to do?';
     $('easy-cut-confirm').hidden = !pendingCut;
     $('easy-layer-count').textContent=String(items.length);
     renderLayers();
     const bin=$('easy-trash-target');
-    bin.hidden = !(tool==='move' && chosen());
+    bin.hidden = !(showDropBin && tool==='move' && chosen());
+    ui.querySelector('.easy-workspace-layout').classList.toggle('easy-bin-open',!bin.hidden);
     if(bin.hidden) bin.classList.remove('easy-trash-hover');
   }
   function renderLayers(){
@@ -345,7 +374,7 @@
       const o=items[k],b=document.createElement('button');b.type='button';
       b.textContent=(o.isLine?'🖌️ ':'🖼️ ')+(o.name||'Picture')+' — '+(k+1);
       b.setAttribute('aria-pressed',String(o.id===selected));
-      b.addEventListener('click',()=>{selected=o.id;tool='move';pendingCut=null;draft=null;controls();render();
+      b.addEventListener('click',()=>{cancelHold();selected=o.id;tool='move';pieceMenuOpen=false;showDropBin=false;pendingCut=null;draft=null;controls();render();
         $('easy-canvas').scrollIntoView({block:'center',behavior:'smooth'});
         message('✋ Grab '+o.name+' by dragging inside the dotted outline, or use the arrow buttons below.');});
       list.append(b);
@@ -362,10 +391,44 @@
   $('easy-zoom-out').addEventListener('click',()=>{const old=zoom;zoom=Math.max(1,+(zoom-.5).toFixed(2));if(zoom!==old)updateZoom(old);});
   $('easy-zoom-reset').addEventListener('click',()=>{zoom=1;canvas.style.width='100%';$('easy-zoom-level').textContent='100%';ui.querySelector('.easy-canvas-wrap').scrollTo(0,0);});
   $('easy-grab').addEventListener('click',()=>setTool('move'));
-  $('easy-delete-selected').addEventListener('click',()=>{
+  function showPieceMenu(){
+    if(!chosen())return;
+    tool='move';pieceMenuOpen=true;showDropBin=false;
+    controls();render();
+    message('✨ Choose what to do. Nothing is deleted until you confirm Throw away.');
+    $('easy-piece-menu').scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+  $('easy-delete-selected').addEventListener('click',showPieceMenu);
+  $('easy-piece-move').addEventListener('click',()=>{
+    pieceMenuOpen=false;showDropBin=false;controls();render();
+    message('✋ Grab your chosen piece and move it with your finger.');
+  });
+  $('easy-piece-copy').addEventListener('click',()=>{
     const o=chosen();if(!o)return;
+    if(items.length>=45){message('Your page is full. Save and start a fresh page.');return;}
+    const n={...o,id:makeId(),x:o.x+30,y:o.y+30};items.push(n);
+    selected=n.id;pieceMenuOpen=false;showDropBin=false;
+    checkpoint();render();message('🧩 Piece copied! Grab the new copy to move it.');
+  });
+  $('easy-piece-show-bin').addEventListener('click',()=>{
+    showDropBin=true;pieceMenuOpen=false;controls();render();
+    message('🗑️ Bin is ready beside the drawing. Drop your piece there, then choose whether to throw it away.');
+  });
+  function askToDeletePiece(){
+    const o=chosen();if(!o)return;
+    // A deliberate second action protects children from accidental loss.
+    if(!confirm('Throw away '+(o.name||'this piece')+'? You can tap Oops! Undo to bring it back.')){
+      showDropBin=false;pieceMenuOpen=false;controls();render();
+      message('💜 Kept your piece safe.');return;
+    }
     items.splice(items.findIndex(item=>item.id===o.id),1);
-    selected=null;pendingCut=null;checkpoint();controls();render();message('🗑️ Piece deleted. Tap Oops! Undo to bring it back.');
+    selected=null;pendingCut=null;showDropBin=false;pieceMenuOpen=false;
+    checkpoint();render();message('🗑️ Piece removed. Tap ↩️ Oops! Undo if you want it back.');
+  }
+  $('easy-piece-delete').addEventListener('click',askToDeletePiece);
+  $('easy-piece-cancel').addEventListener('click',()=>{
+    pieceMenuOpen=false;showDropBin=false;selected=null;controls();render();
+    message('✅ All done! Keep making your masterpiece.');
   });
   $('easy-cut-cancel').addEventListener('click',()=>{pendingCut=null;draft=null;controls();render();message('✂️ Cut cancelled. Your picture is unchanged.');});
   $('easy-cut-done').addEventListener('click',()=>finishPendingCut());
@@ -543,7 +606,7 @@
       add(c,$('easy-friend').selectedOptions[0].text);
     }catch(e){message('Character artwork unavailable. Please check your GitHub art sheet.');}
   });
-  function setTool(next) {tool=next;interaction=null;draft=null;pendingCut=null;controls();render();
+  function setTool(next) {cancelHold();tool=next;interaction=null;draft=null;pendingCut=null;pieceMenuOpen=false;showDropBin=false;controls();render();
     if((next==='paint'||next==='fill')&&!chosen())message('Tap Move and choose a picture first, then return to this tool.');
     else message(hints[next]);}
   ui.querySelectorAll('[data-easy-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.easyTool)));
@@ -596,10 +659,33 @@
       c.beginPath();c.arc(v.x*scaleX,v.y*scaleY,Math.max(2,radius),0,Math.PI*2);
       c.fill();c.restore();});
   }
+  function startHold(e,p,o){
+    cancelHold();
+    if(!o)return;
+    const id=e.pointerId;
+    holdPointer={id,x:e.clientX,y:e.clientY,itemId:o.id};
+    holdTimer=setTimeout(()=>{
+      holdTimer=null;
+      if(!holdPointer||holdPointer.id!==id)return;
+      const wanted=items.find(item=>item.id===holdPointer.itemId);
+      holdPointer=null;
+      if(!wanted)return;
+      // A press-and-hold selects without drawing a mark or moving any piece.
+      if(interaction?.kind==='move'){
+        wanted.x=interaction.startX;wanted.y=interaction.startY;
+      }
+      interaction=null;draft=null;pendingCut=null;
+      selected=wanted.id;tool='move';showPieceMenu();
+    },650);
+  }
   canvas.addEventListener('pointerdown',e=>{
     if(e.button!==undefined && e.button!==0) return;
     e.preventDefault();const p=pos(e);canvas.setPointerCapture(e.pointerId);
-    if(tool==='draw'){draft=[p];interaction={kind:'draw'};render();return;}
+    if(tool==='draw'){
+      draft=[p];interaction={kind:'draw'};
+      // A stationary hold on an existing line shows its options; a stroke draws normally.
+      startHold(e,p,hit(p));render();return;
+    }
     if(tool==='cut'){pendingCut=null;draft=[p,p];interaction={kind:'cut'};controls();render();return;}
     if(tool==='magic'){prepareMagicCut(p);return;}
     if(tool==='erase' || tool==='paint' || tool==='fill'){
@@ -613,12 +699,16 @@
       if(tool==='fill'){checkpoint();interaction=null;message('Colour changed! Tap Undo if it spread too far.');}
       render();return;
     }
-    const o=hit(p);selected=o?.id||null;controls();render();
+    const o=hit(p);selected=o?.id||null;pieceMenuOpen=false;showDropBin=false;
+    controls();render();
     interaction=o?{kind:'move',id:o.id,x:p.x-o.x,y:p.y-o.y,startX:o.x,startY:o.y}:null;
+    if(o)startHold(e,p,o);
     if(o){const i=items.findIndex(x=>x.id===o.id);items[i]={...items[i]};}
     if(!o)message('Tap directly on a picture or coloured line to select it.');
   });
   canvas.addEventListener('pointermove',e=>{
+    if(holdPointer && holdPointer.id===e.pointerId &&
+       Math.hypot(e.clientX-holdPointer.x,e.clientY-holdPointer.y)>12)cancelHold();
     if(!interaction)return;e.preventDefault();const p=pos(e);
     if(interaction.kind==='draw'){draft.push(p);render();return;}
     if(interaction.kind==='cut'){draft[1]=p;render();return;}
@@ -741,6 +831,7 @@
     controls();render();
   }
   canvas.addEventListener('pointerup',e=>{
+    cancelHold();
     const i=interaction;interaction=null;if(!i)return;
     if(i.kind==='draw'){const points=draft;draft=null;if(points?.length)finishDraw(points);return;}
     if(i.kind==='cut'){
@@ -756,13 +847,12 @@
     if(i.kind==='move'){
       const o=items.find(item=>item.id===i.id);
       const distance=o?Math.hypot(o.x-i.startX,o.y-i.startY):0;
-      // Never throw something away from a simple tap: an actual drag into the bin is required.
-      if(o && distance>=18 && overBin(e)){
-        const index=items.findIndex(item=>item.id===i.id);
-        if(index>=0)items.splice(index,1);
-        selected=null;
-        checkpoint();controls();render();
-        message('🗑️ Into the bin! Need it back? Tap ↩️ Oops! Undo just below.');
+      // Even a deliberate drag to the bin asks for confirmation: never auto-delete artwork.
+      if(o && showDropBin && distance>=18 && overBin(e)){
+        o.x=i.startX;o.y=i.startY;
+        showDropBin=false;pieceMenuOpen=true;controls();render();
+        message('🗑️ Is this the piece you want to throw away? Choose Throw away or Done below.');
+        $('easy-piece-menu').scrollIntoView({behavior:'smooth',block:'nearest'});
         return;
       }
       showBinTarget(null);
@@ -772,10 +862,11 @@
         if(p.x<0||p.x>W||p.y<0||p.y>H){o.x=i.startX;o.y=i.startY;}
         if(o.x!==i.startX||o.y!==i.startY)checkpoint();
       }
-      render();if(o)message('Nice! To delete, drag the piece into the bin beside the picture, or tap Bin selected piece. 🗑️');
+      render();if(o)message('Nice! Press and hold the piece or tap Piece options to see the bin. 💜');
     }
   });
   canvas.addEventListener('pointercancel',()=>{
+    cancelHold();
     if(interaction?.kind==='move'){
       const o=items.find(item=>item.id===interaction.id);
       if(o){o.x=interaction.startX;o.y=interaction.startY;}
