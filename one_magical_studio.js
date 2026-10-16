@@ -1,4 +1,4 @@
-/* Little Imagination Club — One Magical Art Studio 3.2 (grab, choose layers, preview cuts, zoom, bin), unified child-friendly touch editor
+/* Little Imagination Club — One Magical Art Studio 3.3 (side bin, grab, cut preview, zoom), unified child-friendly touch editor
  * Use instead of magic_workstation_v2.js: <script src="one_magical_studio.js"></script>
  * All artwork remains in browser; saved copies download as PNG.
  */
@@ -80,10 +80,14 @@
       <button id="easy-zoom-reset" type="button">🔎 Fit</button>
     </div>
     <p class="easy-small">For a closer look, zoom in, then slide around the picture. Zoom does not resize the saved artwork.</p>
-    <div class="easy-canvas-wrap">
-      <canvas id="easy-canvas" width="800" height="600" aria-label="Drag or draw on your magical canvas"></canvas>
-      <div class="easy-trash-target" id="easy-trash-target" hidden aria-hidden="true">
-        <span aria-hidden="true">🗑️</span><strong>DROP HERE</strong><small>Let go to throw away!</small>
+    <div class="easy-workspace-layout" aria-label="Drawing space and separate bin">
+      <div class="easy-canvas-wrap">
+        <canvas id="easy-canvas" width="800" height="600" aria-label="Drag or draw on your magical canvas"></canvas>
+      </div>
+      <div class="easy-bin-rail">
+        <div class="easy-trash-target" id="easy-trash-target" hidden aria-hidden="true">
+          <span aria-hidden="true">🗑️</span><strong>BIN</strong><small>Drop here</small>
+        </div>
       </div>
     </div>
     <div class="easy-quick-help">
@@ -187,21 +191,28 @@
     #lic-easy-art .easy-canvas-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:10px 0}
     #lic-easy-art .easy-canvas-toolbar button{padding:8px;min-height:45px;flex:1 0 64px}
     #lic-easy-art .easy-canvas-toolbar strong{font-size:13px;flex:0 0 45px;text-align:center}
-    #lic-easy-art .easy-canvas-wrap{border:3px solid #d7b6eb;background:white;border-radius:20px;overflow:auto;position:relative;max-height:75vh}
+    /* The bin sits in its own rail BESIDE the drawing: it never covers artwork. */
+    #lic-easy-art .easy-workspace-layout{display:grid;grid-template-columns:minmax(0,1fr) clamp(68px,20%,142px);
+      gap:8px;align-items:center;width:100%;min-width:0}
+    #lic-easy-art .easy-canvas-wrap{border:3px solid #d7b6eb;background:white;border-radius:20px;
+      overflow:auto;position:relative;max-height:75vh;min-width:0;width:100%}
     #lic-easy-art canvas{display:block;width:100%;max-width:none;height:auto;aspect-ratio:4 / 3;touch-action:none;user-select:none}
+    #lic-easy-art .easy-bin-rail{display:flex;justify-content:center;align-items:center;min-width:0;align-self:stretch}
     #lic-easy-art .easy-trash-target[hidden]{display:none!important}
-    #lic-easy-art .easy-trash-target{position:absolute;right:9px;bottom:9px;z-index:3;
+    #lic-easy-art .easy-trash-target{position:relative;
       display:flex;flex-direction:column;align-items:center;justify-content:center;
-      width:clamp(104px,31%,148px);height:clamp(100px,32%,138px);
-      gap:1px;border:4px dashed #9854c8;border-radius:22px;
-      background:rgba(250,228,255,.96);color:#582b89;pointer-events:none;
+      width:100%;max-width:142px;min-height:118px;
+      gap:3px;padding:7px 2px;border:4px dashed #9854c8;border-radius:19px;
+      background:#fae4ff;color:#582b89;pointer-events:none;
       text-align:center;font-weight:900;box-shadow:0 3px 15px #4c217044;
-      transition:background .12s ease,transform .12s ease,border-color .12s ease;}
-    #lic-easy-art .easy-trash-target span{font-size:clamp(32px,9vw,50px);line-height:1.1}
-    #lic-easy-art .easy-trash-target strong{font-size:clamp(12px,3.4vw,18px);line-height:1.1}
-    #lic-easy-art .easy-trash-target small{font-size:clamp(9px,2.5vw,12px);line-height:1.2}
-    #lic-easy-art .easy-trash-target.easy-trash-hover{background:#ffe5a9;border-color:#d25c2f;
-      transform:scale(1.045)}
+      transition:background .12s ease,border-color .12s ease;}
+    #lic-easy-art .easy-trash-target span{font-size:clamp(27px,6.5vw,44px);line-height:1.1}
+    #lic-easy-art .easy-trash-target strong{font-size:clamp(12px,3vw,17px);line-height:1.1}
+    #lic-easy-art .easy-trash-target small{font-size:clamp(9px,2.2vw,12px);line-height:1.1;overflow-wrap:anywhere}
+    #lic-easy-art .easy-trash-target.easy-trash-hover{background:#ffe5a9;border-color:#d25c2f;}
+    @media (max-width:380px){#lic-easy-art .easy-workspace-layout{gap:5px;grid-template-columns:minmax(0,1fr) 66px}
+      #lic-easy-art .easy-trash-target{border-width:3px;border-radius:13px;min-height:99px;padding:4px 1px}}
+
     #lic-easy-art .easy-quick-help{display:flex;align-items:center;justify-content:space-between;
       flex-wrap:wrap;gap:8px;margin-top:8px;padding:8px 2px;font-weight:850;font-size:13px}
     #lic-easy-art #easy-undo-near{background:#fff3c8;border-color:#c692d4;min-height:48px}
@@ -630,7 +641,7 @@
     items[idx]={...original,img:world,w:W,h:H,scale:1,rot:0,x:W/2,y:H/2};
     const cut={id:makeId(),name:'Cut-out',img:piece,w,h,scale:1,rot:0,x:x+w/2,y:y+h/2};
     items.push(cut);selected=cut.id;tool='move';checkpoint();render();
-    message('✂️ Got it! Grab that piece and drag it into the big bin 🗑️, or move it somewhere else.');
+    message('✂️ Got it! Move the piece wherever you want, or drop it in the bin beside the canvas.');
   }
   function prepareMagicCut(p){
     const original=hit(p);
@@ -722,7 +733,7 @@
         if(p.x<0||p.x>W||p.y<0||p.y>H){o.x=i.startX;o.y=i.startY;}
         if(o.x!==i.startX||o.y!==i.startY)checkpoint();
       }
-      render();if(o)message('Nice! Want to remove it? Grab and drop it into the big bin. 🗑️');
+      render();if(o)message('Nice! To delete, drag the piece into the bin beside the picture, or tap Bin selected piece. 🗑️');
     }
   });
   canvas.addEventListener('pointercancel',()=>{
