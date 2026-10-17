@@ -1371,8 +1371,8 @@
       storyFieldIds.forEach(id=>{const el=document.getElementById(id);if(el)el.value=record.fields?.[id]??'';});
       const wanted=record.fields?.mode||'drawing';
       const modeButton=[...document.querySelectorAll('#create .creator-tabs [data-mode]')].find(b=>b.dataset.mode===wanted);
-      modeButton?.click();
-      restorePictureSelections(record.fields?.pictures);
+    if(!skipSave)modeButton?.click();
+    restorePictureSelectionss(record.fields?.pictures);
       if(storyPicture)await restoreStoryPicture(storyPicture);
       else{const upload=document.getElementById('club-upload');if(upload)upload.value='';const art=document.getElementById('club-book-art');if(art){art.hidden=true;art.removeAttribute('src');}}
       // Generate the existing book preview from saved fields; no new content is invented.
