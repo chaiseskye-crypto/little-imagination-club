@@ -1,4 +1,4 @@
-/* Little Imagination Club — One Magical Art Studio 3.9.1 (stable drag-to-bin + properly scaled eraser), unified child-friendly touch editor
+/* Little Imagination Club — One Magical Art Studio 3.9.2 (always-visible bin and direct safe-delete + properly scaled eraser), unified child-friendly touch editor
  * Use instead of magic_workstation_v2.js: <script src="one_magical_studio.js"></script>
  * Editable projects autosave in this browser using IndexedDB. Manual PNG and project backups available.
  */
@@ -120,7 +120,7 @@
         <canvas id="easy-canvas" width="800" height="600" aria-label="Drag or draw on your magical canvas"></canvas>
       </div>
       <div class="easy-bin-rail">
-        <div class="easy-trash-target" id="easy-trash-target" hidden aria-hidden="true">
+        <div class="easy-trash-target" id="easy-trash-target" aria-hidden="false">
           <span aria-hidden="true">🗑️</span><strong>BIN</strong><small>Drop here</small>
         </div>
       </div>
@@ -137,7 +137,8 @@
       </div>
     </div>
     <div class="easy-quick-help">
-      <button id="easy-delete-selected" type="button">🗑️ Bin / Piece options</button>
+      <button id="easy-delete-selected" type="button">🧩 Piece options</button>
+      <button id="easy-quick-delete" type="button" disabled>🗑️ Throw away selected</button>
       <button id="easy-undo-near" type="button">↩️ Oops! Undo</button>
       <button id="easy-save-now" type="button">💾 Save now</button>
     </div>
@@ -254,9 +255,10 @@
     #lic-easy-art .easy-canvas-toolbar button{padding:8px;min-height:45px;flex:1 0 64px}
     #lic-easy-art .easy-canvas-toolbar strong{font-size:13px;flex:0 0 45px;text-align:center}
     /* The bin sits in its own rail BESIDE the drawing: it never covers artwork. */
-    #lic-easy-art .easy-workspace-layout{display:grid;grid-template-columns:minmax(0,1fr);
+    /* Permanently reserve the side rail: no layout jumps when the tool or selection changes. */
+    #lic-easy-art .easy-workspace-layout{display:grid;
+      grid-template-columns:minmax(0,1fr) clamp(68px,20%,142px);
       gap:8px;align-items:center;width:100%;min-width:0}
-    #lic-easy-art .easy-workspace-layout.easy-bin-open{grid-template-columns:minmax(0,1fr) clamp(68px,20%,142px)}
     #lic-easy-art .easy-canvas-wrap{border:3px solid #d7b6eb;background:white;border-radius:20px;
       overflow:auto;position:relative;max-height:75vh;min-width:0;width:100%}
     #lic-easy-art canvas{display:block;width:100%;max-width:none;height:auto;aspect-ratio:4 / 3;touch-action:none;user-select:none}
@@ -265,7 +267,6 @@
     #lic-easy-art .easy-creations-filter-label select{background:#fffdfd;color:#41306b;border:2px solid #d6b9ed;border-radius:14px;font:inherit;font-weight:700;padding:10px 12px;max-width:100%}
     #lic-easy-art .easy-creation-actions button{min-height:44px}
     #lic-easy-art .easy-book-pill{display:inline-block;font-size:.88em;background:#f0e6ff;border-radius:99px;padding:4px 10px;margin:4px 0}
-     #lic-easy-art .easy-trash-target[hidden]{display:none!important}
     #lic-easy-art .easy-trash-target{position:relative;
       display:flex;flex-direction:column;align-items:center;justify-content:center;
       width:100%;max-width:142px;min-height:118px;
@@ -286,7 +287,9 @@
     #lic-easy-art #easy-undo-near{background:#fff3c8;border-color:#c692d4;min-height:48px}
     #lic-easy-art #easy-save-now{background:#dff6e9;border-color:#63ac88;min-height:48px}
     #lic-easy-art .easy-near-save-status{font-size:13px;font-weight:800;color:#6743a7;margin:9px 2px 12px;line-height:1.45}
-    #lic-easy-art #easy-delete-selected{background:#ffe3ed;border-color:#d47d9b;min-height:48px}
+    #lic-easy-art #easy-delete-selected{background:#f4e9ff;border-color:#c692df;min-height:48px}
+    #lic-easy-art #easy-quick-delete{background:#ffe3ed;border-color:#d47d9b;min-height:48px}
+    #lic-easy-art #easy-quick-delete:disabled{opacity:.54;cursor:not-allowed}
     #lic-easy-art .easy-eraser-controls[hidden]{display:none!important}
     #lic-easy-art .easy-eraser-controls{margin:12px 0;padding:12px;background:#fff9fd;border:2px solid #d6b9ee;border-radius:18px}
     #lic-easy-art .easy-eraser-controls label{font-size:15px;font-weight:850;display:flex;gap:8px;align-items:center}
@@ -303,7 +306,7 @@
     #lic-easy-art .easy-piece-choices button{min-height:51px;font-size:14px;white-space:normal;padding:7px}
     #lic-easy-art #easy-piece-delete{background:#ffe7e9;border-color:#d65c83}
     #lic-easy-art #easy-piece-cancel{background:#e6f8ef;border-color:#68b593}
-    @media(max-width:385px){#lic-easy-art .easy-workspace-layout.easy-bin-open{gap:5px;grid-template-columns:minmax(0,1fr) 66px}}
+    @media(max-width:385px){#lic-easy-art .easy-workspace-layout{gap:5px;grid-template-columns:minmax(0,1fr) 66px}}
     #lic-easy-art .easy-cut-confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
       background:#fff7d9;padding:11px;border:2px solid #e5cb79;border-radius:15px;margin:8px 0}
     #lic-easy-art .easy-cut-confirm[hidden]{display:none!important}
@@ -393,16 +396,15 @@
     $('easy-layer-count').textContent=String(items.length);
     renderLayers();
     const bin=$('easy-trash-target');
-    // Keep the bin rail stationary throughout Grab & Move, including before the
-    // first tap and while dragging. Hiding it when pointerdown resets the prior
-    // showDropBin flag made the target disappear under a child's finger.
-    // Reserving its column before selection avoids the canvas jumping sideways.
-    bin.hidden = tool !== 'move';
-    bin.classList.toggle('easy-bin-waiting', !chosen());
-    bin.querySelector('small').textContent = chosen() ? 'Drop here' : 'Grab first';
-    bin.setAttribute('aria-hidden', String(bin.hidden));
-    ui.querySelector('.easy-workspace-layout').classList.toggle('easy-bin-open',!bin.hidden);
-    if(bin.hidden || !chosen()) bin.classList.remove('easy-trash-hover');
+    // Never hide or relocate the drop bin — even when changing tools or selection.
+    // This prevents a mobile child from chasing a disappearing target.
+    bin.hidden=false;
+    bin.setAttribute('aria-hidden','false');
+    const canDrop = tool==='move' && !!chosen();
+    bin.classList.toggle('easy-bin-waiting', !canDrop);
+    bin.querySelector('small').textContent = canDrop ? 'Drop here' : 'Tap Grab first';
+    $('easy-quick-delete').disabled = !chosen();
+    if(!canDrop)bin.classList.remove('easy-trash-hover');
   }
   function eraserWorldDiameter(){
     const visualWidth=canvas.getBoundingClientRect().width || 350;
@@ -479,6 +481,11 @@
     checkpoint();render();message('🗑️ Piece removed. Tap ↩️ Oops! Undo if you want it back.');
   }
   $('easy-piece-delete').addEventListener('click',askToDeletePiece);
+  // The simplest mobile fallback: choose a piece, tap delete, confirm. No dragging needed.
+  $('easy-quick-delete').addEventListener('click',()=>{
+    if(!chosen()) {message('✋ Choose a piece first.');return;}
+    askToDeletePiece();
+  });
   $('easy-piece-cancel').addEventListener('click',()=>{
     pieceMenuOpen=false;showDropBin=false;selected=null;controls();render();
     message('✅ All done! Keep making your masterpiece.');
@@ -500,7 +507,8 @@
            e.clientY>=r.top-tolerance && e.clientY<=r.bottom+tolerance;
   }
   function showBinTarget(e){
-    $('easy-trash-target').classList.toggle('easy-trash-hover',!!e && overBin(e));
+    $('easy-trash-target').classList.toggle('easy-trash-hover',
+      tool==='move' && !!chosen() && !!e && overBin(e));
   }
   function paintItem(o,context) {
     context.save(); context.translate(o.x,o.y); context.rotate(o.rot*Math.PI/180);
@@ -919,10 +927,12 @@
       const distance=o?Math.hypot(o.x-i.startX,o.y-i.startY):0;
       // Even a deliberate drag to the bin asks for confirmation: never auto-delete artwork.
       if(o && tool==='move' && distance>=18 && overBin(e)){
+        // Keep the canvas and bin exactly where they are: the old menu-scrolling
+        // behaviour made the bin appear to disappear at the moment of dropping.
         o.x=i.startX;o.y=i.startY;
-        showDropBin=false;pieceMenuOpen=true;controls();render();
-        message('🗑️ Is this the piece you want to throw away? Choose Throw away or Done below.');
-        $('easy-piece-menu').scrollIntoView({behavior:'smooth',block:'nearest'});
+        selected=o.id;
+        showBinTarget(null);
+        askToDeletePiece();
         return;
       }
       showBinTarget(null);
