@@ -2188,26 +2188,82 @@
       (doc.querySelector('#create .creator-tabs [data-mode="guided"][aria-pressed="true"]') ? tidy($('club-place')?.value) : '')||"King Kyle's Happy Kingdom";
     return {items,desc,prompt,hero,place,hasPicture:Boolean($('club-upload')?.files?.length)};
   }
+  // A short *complete* six-scene fairy tale, not instructions or story prompts.
+  // The free offline maker is intentionally limited; real AI needs a secure service.
   function buildInstantStory(data){
     const {items,desc,prompt,hero,place}=data;
-    const object=pick(['a tiny golden bell','a glowing blue feather','a little silver compass','a ribbon full of stars']);
-    const feeling=pick(['brave','curious','hopeful','kind']);
-    const secret=pick(['a song that could wake the sleepy flowers','a path of sparkling stepping-stones','a letter from a friend who needed help','a trail of floating lanterns']);
-    const sentences=[];
-    sentences.push(`Once upon a time, in ${place}, ${hero} woke up with a wonderfully strange feeling. Something exciting was about to happen. The air smelled like fresh flowers, and the clouds looked as soft as marshmallows.`);
-    if(desc)sentences.push(`It all began with a very special idea: “${desc}” ${hero} thought about it carefully. “What if we could turn that idea into a real adventure?” whispered a little voice. There was only one way to find out.`);
-    if(prompt)sentences.push(`Then an exciting mystery appeared: ${prompt} Nobody knew the whole answer yet. But every great adventure starts by being willing to wonder.`);
-    else sentences.push(`Just beside the winding path, ${hero} discovered ${object}. Attached to it was a note that said, “A friend needs your help. Follow your heart, and don't forget to look closely!”`);
-    const unique=items.slice(0,8);
-    unique.forEach((item,i)=>{
-      if(item.category==='friends')sentences.push(`${i===0?'Before long':'A little further along'}, ${item.short} joined the adventure. ${item.note} Together, the friends shared an idea, laughed at a funny surprise, and took another little step towards solving the mystery.`);
-      else sentences.push(`Their next stop was ${item.short}. ${item.note} The place was full of tiny clues. The friends stopped to look, listen and imagine what might happen next.`);
+    const other=items.find(x=>x.category==='friends'&&x.short!==hero)?.short||'Chippy the helpful squirrel';
+    const seed=(prompt+' '+desc).toLowerCase();
+    const core={
+      problem:'a little wooden box appeared beside the garden path. Inside was a folded note: “Please help me find the missing star before sunset!”',
+      attempt:'They searched beside the fountain and underneath a sleepy old tree. Just as they were about to give up, a trail of sparkling footprints appeared.',
+      help:'“Follow the footprints!” said the friends. They walked together, helping each other across a puddle and up a twisty hill.',
+      solution:'At the top they found the missing star caught in a leafy branch. Together, they lifted it free and returned it to its grateful owner.'
+    };
+    if(/key|door/.test(seed))Object.assign(core,{
+      problem:'a tiny golden key was twinkling in the grass. A note tied to it said, “Find the door that needs a little kindness.”',
+      attempt:'They tried the big castle gate. Click! Nothing. They tried the old tower door. Clunk! Still nothing. Then they noticed a tiny, forgotten door hidden behind the roses.',
+      help:'The door had no handle, only a picture of a lonely little bird. They gently filled its empty water bowl and helped it build a soft nest. Suddenly the golden key began to glow.',
+      solution:'Click! The little door swung open to reveal a secret garden filled with glowing flowers. A sign read: “Kindness is the key.” The bird sang happily as they stepped inside.'
     });
-    sentences.push(`Soon they reached a place where the path split in two. One way was bright and easy; the other seemed unfamiliar. ${hero} felt a flutter of nerves, but remembered that being ${feeling} didn't mean never feeling scared. It meant trying with a kind friend beside you.`);
-    sentences.push(`Chippy the helpful squirrel noticed ${secret}. “I've got an idea!” he squeaked. Everyone listened, even Bertie Bug, who had been hiding nearby and trying very hard not to smile. This time, Bertie decided to help. The friends worked together, and a little bit of kindness made all the difference.`);
-    sentences.push(`At last the mystery was solved! They discovered that the happiest magic wasn't hidden inside a treasure chest at all. It was the courage to try, the patience to listen, and the joy of helping someone else. King Kyle welcomed everyone home with a big smile and a celebration under the stars.`);
-    sentences.push(`That night, ${hero} looked back on the adventure and whispered, “I'm glad we tried.” And the whole Happy Kingdom agreed: tomorrow would be full of new stories waiting to begin.\n\nThe End. 💜`);
-    return sentences.join('\n\n');
+    else if(/bird|fly home/.test(seed))Object.assign(core,{
+      problem:'a little bird was fluttering beside a tree. “I cannot find my way home,” it chirped. Its wings were tired, and its nest seemed far away.',
+      attempt:'They looked high in the branches and listened for other birds calling. The little bird recognised a familiar song, but the branches were too tall.',
+      help:'The friends gathered soft leaves and made a safe resting place. They waited patiently while the bird found its strength, then followed the song together.',
+      solution:'With one brave flap and then another, the bird reached its family in the next tree. Everyone cheered as its parents sang a thank-you song.'
+    });
+    else if(/rainbow|colour/.test(seed))Object.assign(core,{
+      problem:'they discovered a rainbow with all its colours missing. It hung in the sky like a pale ribbon, looking very sad indeed.',
+      attempt:'They searched for colours in flowers, puddles, butterflies and bright autumn leaves. Each colour they found made the rainbow sparkle a little more.',
+      help:'A shy friend found the last colour hiding inside a tiny bluebell. “I think I can help,” the friend whispered, holding it up bravely.',
+      solution:'Whoosh! Red, orange, yellow, green, blue and violet swept across the sky. The rainbow shone so brightly that the whole kingdom stopped to smile.'
+    });
+    else if(/crown/.test(seed))Object.assign(core,{
+      problem:'King Kyle’s crown had vanished from its velvet cushion! All that remained was a trail of glitter leading out of the castle.',
+      attempt:'They searched behind the curtains, under the royal table and even inside Scrap’s cheese cupboard. No crown! But the glitter trail continued outside.',
+      help:'The trail ended beside a tree where the friends were decorating a little stage. “Shh,” giggled Chippy, “we are planning a surprise!”',
+      solution:'Out popped the crown, polished and sparkling for a surprise kindness celebration. King Kyle laughed and thanked everyone for the loveliest surprise of all.'
+    });
+    else if(/shy|penguin|chilly|speak|hello/.test(seed))Object.assign(core,{
+      problem:'Chilly the little penguin wanted to tell everyone something, but his words felt stuck. His tummy fluttered like a hundred tiny butterflies.',
+      attempt:'He practised a whisper behind a tree. Then he tried saying one word to Chippy. “H-hello,” said Chilly, and Chippy gave him a warm smile.',
+      help:'“You can take your time,” said the friends. Chilly breathed gently, held a friend’s paw and tried again, one little word at a time.',
+      solution:'“I have an idea!” Chilly finally said. His friends listened. His idea saved the day, and Chilly learned that being brave can begin with the tiniest hello.'
+    });
+    else if(/turtle|bridge/.test(seed))Object.assign(core,{
+      problem:'a baby turtle stood beside a stream, unable to reach its family on the other side. The water was too fast for little flippers.',
+      attempt:'They searched for flat stones and strong twigs. One bridge wobbled. Another was too short. “We need to make it safe,” said the friends.',
+      help:'Everyone worked together: some carried twigs, some lined up stones, and Chippy checked each step before the turtle tried it.',
+      solution:'Step by careful step, the baby turtle crossed the bridge. Its family rushed over for a happy reunion, and everyone celebrated.'
+    });
+    else if(/garden|flowers/.test(seed))Object.assign(core,{
+      problem:'they found a secret garden with a little door that would not open. Above it were four curious words: “Kindness lets magic grow.”',
+      attempt:'They tried knocking and singing, but the door stayed shut. Then they noticed drooping flowers and an empty watering can.',
+      help:'The friends carried fresh water, cleared the path and helped a tiny caterpillar find a safe leaf. One by one, the flowers lifted their heads.',
+      solution:'The garden door swung wide, revealing trees full of colourful lanterns. The garden had been waiting for someone with a kind heart.'
+    });
+    else if(/picnic/.test(seed))Object.assign(core,{
+      problem:'Rainbow Unicorn invited everyone to a royal picnic. But just as they arrived, a playful breeze whisked away the picnic blanket!',
+      attempt:'The friends chased the fluttering blanket past the pond and around a friendly tree. It landed high in a bush where nobody could quite reach.',
+      help:'Working together, they used a long, gentle branch to free the blanket without hurting the bush. Then they invited a lonely little bunny to join them.',
+      solution:'At last the picnic was ready, with strawberries, sandwiches and laughter. The best part was having room on the blanket for one more friend.'
+    });
+    else if(/letter|cloud/.test(seed))Object.assign(core,{
+      problem:'a tiny cloud floated through the castle window and dropped a mysterious letter into their paws. It said, “Please bring a smile to the lonely moon.”',
+      attempt:'They made silly faces and waved bright ribbons, but the moon looked too far away to notice. So they thought of another way.',
+      help:'The friends gathered lanterns and hung them like little stars along the garden path. Then they sang the moon their favourite lullaby.',
+      solution:'The moon rose above the castle, smiling a silver smile. The little cloud danced happily, and the garden glowed all night.'
+    });
+    const beginning=`Once upon a time in ${place}, ${hero} opened the curtains and saw the sun painting golden stripes across the hills. “What a perfect day for an adventure!” ${hero} said.`;
+    const special=desc?` That morning, someone had shared a very special idea: ${desc.replace(/[.!?]+$/,'')}.` : '';
+    return [
+      beginning+special,
+      `But something unexpected happened: ${core.problem} “Come on,” said ${hero}. “Let’s see what we can do!”`,
+      `${hero} and ${other} set off together. ${core.attempt}`,
+      `The adventure was not easy, but nobody had to do it alone. ${core.help}`,
+      `${core.solution} “We did it!” cheered ${hero}. “And we did it together!”`,
+      `That evening, the friends returned to ${place} for warm cocoa and a cosy story by the window. ${hero} smiled. The most wonderful adventures were the ones they shared.\n\nThe End. 💜`
+    ].join('\n\n');
   }
   async function attachSelectedCover(){
     const input=$('club-upload');
@@ -2329,6 +2385,71 @@
     <div id="lic-work-ask" hidden><section><h3>🦁 Remove this page?</h3><p>You can keep your page if you change your mind.</p><div><button id="lic-work-keep" type="button">💜 Keep it</button><button id="lic-work-remove-confirm" type="button">🗑️ Remove</button></div></section></div>`;
   doc.body.append(workshop);
   const w=id=>workshop.querySelector('#'+id);
+
+  // 3.15: READ first, CREATE when wanted. Don't crowd the page with editor controls.
+  const kidCSS=doc.createElement('style');
+  kidCSS.textContent=`
+    #lic-story-workshop{background:linear-gradient(160deg,#f6e8ff 0%,#dff7ff 53%,#fff5d9 100%)}
+    #lic-work-header{padding:10px 13px;background:#fcf1ff;box-shadow:0 2px 9px #46245e20}
+    #lic-work-header strong{font-size:clamp(17px,5vw,22px)}
+    #lic-work-header small{display:none}
+    #lic-work-header #lic-work-save{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+    #lic-work-close{min-height:50px!important;font-size:16px!important;background:#fff9f0!important}
+    #lic-work-body{padding:11px 10px 18px}
+    #lic-work-sheet{border:3px solid #d8b5f3;border-radius:24px;padding:13px;background:linear-gradient(145deg,#fffdf6,#fff8ff 95%);box-shadow:0 8px 23px #7353b328}
+    #lic-work-title-display{font-size:clamp(21px,5.7vw,29px);text-align:center;line-height:1.25;color:#59318c;overflow-wrap:anywhere;word-break:normal;margin:2px 0 12px;max-width:100%;font-weight:900}
+    #lic-work-art-wrap{min-height:215px;max-height:none;height:min(38vh,320px);border-radius:19px;background:radial-gradient(circle at 50% 65%,#fff8de 0%,#f9eafa 65%,#e6faff 100%);border:2px solid #f3d8fa}
+    #lic-work-art{height:100%;max-height:320px;object-fit:contain}
+    #lic-work-page-label{font-size:16px;margin:9px 0 6px;color:#764cac}
+    #lic-work-prose{font-size:clamp(19px,5.2vw,22px);line-height:1.55;margin:10px 5px 15px;min-height:95px;color:#37254d;white-space:pre-wrap}
+    #lic-work-footer{padding:9px 10px max(12px,env(safe-area-inset-bottom));background:#fffdfd;box-shadow:0 -4px 15px #61419c14}
+    #lic-work-pager{margin-bottom:9px}
+    #lic-work-pager button{min-height:53px!important;border-color:#be98e7!important;background:#fff5fd!important;font-size:16px!important}
+    #lic-work-page-count{font-size:17px}
+    #lic-work-toolbar{grid-template-columns:1fr 1fr;gap:9px}
+    #lic-work-toolbar button{font-size:16px!important;min-height:56px!important;padding:10px 7px!important;line-height:1.2}
+    #lic-work-toolbar #lic-work-kid-customize{background:#f7deff;border-color:#b783db;color:#563080}
+    #lic-work-toolbar #lic-work-listen{background:#dcfaec;border-color:#8ad0a5;color:#245d4c}
+    #lic-work-kid-tools{margin:12px 0 3px;border:2px dashed #c99be4;border-radius:17px;background:#f9f3ff;padding:12px}
+    #lic-work-kid-tools h3{font-size:19px;margin:0 0 9px}
+    #lic-work-kid-tools label{font-size:15px}
+    #lic-work-kid-tools #lic-work-title{font-size:17px;min-height:45px}
+    #lic-work-kid-tools .lic-work-page-buttons{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}
+    #lic-work-kid-tools .lic-work-page-buttons button{min-height:56px;font-size:15px}
+    #lic-work-kid-tools .lic-work-extra-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+    #lic-work-kid-tools .lic-work-extra-tools button{min-height:49px;font-size:15px}
+    #lic-work-kid-tools .lic-work-extra-tools #lic-work-movie{grid-column:span 2}
+    #lic-work-kid-tools .lic-work-extra-tools #lic-work-movie:disabled{opacity:.7}
+    #lic-work-status{font-size:11px;min-height:0;margin:3px auto 0}
+    @media(max-width:360px){#lic-work-toolbar button{font-size:14px!important}#lic-work-pager button{font-size:14px!important}}
+  `;doc.head.append(kidCSS);
+  const kidSheet=w('lic-work-sheet');
+  const titleShow=doc.createElement('h2');titleShow.id='lic-work-title-display';titleShow.textContent='My Magic Book';
+  kidSheet.insertBefore(titleShow,w('lic-work-title'));
+  const kidTools=doc.createElement('section');kidTools.id='lic-work-kid-tools';kidTools.hidden=true;
+  const kidToolsHeading=doc.createElement('h3');kidToolsHeading.textContent='✨ Change your book!';kidTools.append(kidToolsHeading);
+  const wordsLabel=doc.createElement('label');wordsLabel.textContent='✏️ Your story words';wordsLabel.setAttribute('for','lic-work-words');wordsLabel.style.cssText='font-weight:800;display:block;margin-bottom:6px';kidTools.append(wordsLabel);
+  kidTools.append(w('lic-work-words'),w('lic-work-sheet').querySelector('.lic-work-page-buttons'));
+  const bookNameLabel=doc.createElement('label');bookNameLabel.textContent='📖 Your book name';bookNameLabel.setAttribute('for','lic-work-title');bookNameLabel.style.cssText='font-weight:800;display:block;margin:12px 0 5px';kidTools.append(bookNameLabel);kidTools.append(w('lic-work-title'),w('lic-work-byl'));
+  const extraTools=doc.createElement('div');extraTools.className='lic-work-extra-tools';
+  extraTools.append(w('lic-work-export'),w('lic-work-tools'),w('lic-work-movie'));kidTools.append(extraTools);
+  const futureMovie=kidSheet.querySelector('p[style*="margin:9px"]');if(futureMovie){futureMovie.textContent='🎬 Mini movies will be added in a future adventure.';kidTools.append(futureMovie);}
+  kidSheet.append(kidTools);
+  const kidCustomize=doc.createElement('button');kidCustomize.id='lic-work-kid-customize';kidCustomize.type='button';kidCustomize.textContent='🎨 Change my book';
+  w('lic-work-toolbar').append(kidCustomize);
+  w('lic-work-header').querySelector('.lic-work-brand strong').textContent='📖 My Magic Book';
+  w('lic-work-close').textContent='🏡 Done';
+  w('lic-work-listen').textContent='🔊 Read to me';
+  w('lic-work-next').textContent='Next ➜';w('lic-work-prev').textContent='⬅ Back';
+  w('lic-work-edit').textContent='✏️ Change words';w('lic-work-change-pic').textContent='🖼️ My pictures';
+  w('lic-work-add-page').textContent='➕ New page';w('lic-work-remove-page').textContent='🗑️ Delete page';
+  w('lic-work-export').textContent='📚 Take book home';w('lic-work-tools').textContent='💾 Save my book';
+  w('lic-work-movie').textContent='🎬 3D Movie (coming soon)';
+  function refreshKidTitle(){titleShow.textContent=w('lic-work-title').value.trim()||'My Magic Book';}
+  function kidEditing(show){kidTools.hidden=!show;kidCustomize.textContent=show?'📖 Read my book':'🎨 Change my book';setMode(show);if(!show)w('lic-work-body').scrollTop=0;}
+  kidCustomize.addEventListener('click',()=>{kidEditing(kidTools.hidden);if(!kidTools.hidden)kidTools.scrollIntoView({block:'start',behavior:'smooth'});});
+  w('lic-work-title').addEventListener('input',refreshKidTitle);
+
   let bookPages=[],currentPage=0,editingPage=true,workOpen=false,workStoryId='',workLoad=0,workTimer=0;
   let overflowBefore='',workOldFocus=null,saveToken=0;
   // Store illustrated page layout separately from the existing (text-based)
@@ -2410,7 +2531,7 @@
   function smallPhoto(file){return new Promise((resolve,reject)=>{
     if(!file||!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>5*1024*1024){reject(new Error('Choose a JPG, PNG or WebP image under 5 MB.'));return;}
     const url=URL.createObjectURL(file),img=new Image();
-    img.onload=()=>{try{const ratio=Math.min(1,900/Math.max(img.naturalWidth,img.naturalHeight));const can=doc.createElement('canvas');can.width=Math.max(1,Math.round(img.naturalWidth*ratio));can.height=Math.max(1,Math.round(img.naturalHeight*ratio));can.getContext('2d').drawImage(img,0,0,can.width,can.height);resolve(can.toDataURL('image/jpeg',.77));}catch(e){reject(e);}finally{URL.revokeObjectURL(url);}};
+    img.onload=()=>{try{const ratio=Math.min(1,900/Math.max(img.naturalWidth,img.naturalHeight));const can=doc.createElement('canvas');can.width=Math.max(1,Math.round(img.naturalWidth*ratio));can.height=Math.max(1,Math.round(img.naturalHeight*ratio));const cx=can.getContext('2d');cx.fillStyle='#fffaf1';cx.fillRect(0,0,can.width,can.height);cx.drawImage(img,0,0,can.width,can.height);resolve(can.toDataURL('image/jpeg',.82));}catch(e){reject(e);}finally{URL.revokeObjectURL(url);}};
     img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('That picture could not be opened.'));};img.src=url;
   });}
   w('lic-work-upload-pic').addEventListener('change',async()=>{const f=w('lic-work-upload-pic').files?.[0];if(!f)return;try{const data=await smallPhoto(f);if(!workOpen)return;bookPages[currentPage].picture={kind:'photo',src:data};showPage();scheduleBookSave();statusWork('📸 Your own picture is on this page!');}catch(e){statusWork(e.message);}w('lic-work-upload-pic').value='';});
@@ -2457,7 +2578,7 @@
     overflowBefore=doc.body.style.overflow;workOldFocus=doc.activeElement;
     doc.body.style.overflow='hidden';workOpen=true;workshop.hidden=false;
     w('lic-work-save').textContent='💜 Your book';statusWork(how==='generated'?'✨ Your illustrated storybook is ready!':'💜 Change anything you like right here.');
-    setMode(how==='own'||!text.trim());showPage();buildPicturePicker();
+    kidEditing(how==='own'||!text.trim());showPage();refreshKidTitle();buildPicturePicker();
     w('lic-work-body').scrollTop=0;w('lic-work-title').focus({preventScroll:true});
     await saveWorkshop();
   }
