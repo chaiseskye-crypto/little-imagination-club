@@ -1380,7 +1380,7 @@ if(storyFinished)document.getElementById('club-preview')?.setAttribute('hidden',
       else if(document.getElementById('club-preview'))document.getElementById('club-preview').hidden=true;
       storyStatus.textContent='✅ Opened '+storyName+' — keep writing!';
     }finally{storyRestore=false;}
-    document.getElementById('create')?.scrollIntoView({behavior:'smooth',block:'start'});
+ if(!skipSave)document.getElementById('create')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
   async function newStory(){
     await saveStoryNow();storyRestore=true;
