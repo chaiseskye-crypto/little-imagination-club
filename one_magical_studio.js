@@ -1,4 +1,4 @@
-/* Little Imagination Club — One Magical Art Studio 3.7 (all-in-one creations hub), unified child-friendly touch editor
+/* Little Imagination Club — One Magical Art Studio 3.9 (clear bin + properly scaled eraser), unified child-friendly touch editor
  * Use instead of magic_workstation_v2.js: <script src="one_magical_studio.js"></script>
  * Editable projects autosave in this browser using IndexedDB. Manual PNG and project backups available.
  */
@@ -105,6 +105,16 @@
       <button id="easy-zoom-reset" type="button">🔎 Fit</button>
     </div>
     <p class="easy-small">For a closer look, zoom in, then slide around the picture. Zoom does not resize the saved artwork.</p>
+    <div class="easy-eraser-controls" id="easy-eraser-controls" hidden>
+      <label for="easy-eraser-size">🧽 Eraser size: <strong id="easy-eraser-label">Medium</strong></label>
+      <input type="range" id="easy-eraser-size" min="10" max="110" step="2" value="54" aria-label="Eraser diameter on screen">
+      <div class="easy-eraser-presets" role="group" aria-label="Eraser sizes">
+        <button type="button" data-eraser-px="18">Small</button>
+        <button type="button" data-eraser-px="54">Medium</button>
+        <button type="button" data-eraser-px="100">Large</button>
+      </div>
+      <p class="easy-small">The circle shows exactly how much will rub out. Your drawings are safe until you touch them.</p>
+    </div>
     <div class="easy-workspace-layout" aria-label="Drawing space and separate bin">
       <div class="easy-canvas-wrap">
         <canvas id="easy-canvas" width="800" height="600" aria-label="Drag or draw on your magical canvas"></canvas>
@@ -127,7 +137,7 @@
       </div>
     </div>
     <div class="easy-quick-help">
-      <button id="easy-delete-selected" type="button" hidden>🧩 Piece options</button>
+      <button id="easy-delete-selected" type="button">🗑️ Bin / Piece options</button>
       <button id="easy-undo-near" type="button">↩️ Oops! Undo</button>
       <button id="easy-save-now" type="button">💾 Save now</button>
     </div>
@@ -275,8 +285,14 @@
     #lic-easy-art #easy-undo-near{background:#fff3c8;border-color:#c692d4;min-height:48px}
     #lic-easy-art #easy-save-now{background:#dff6e9;border-color:#63ac88;min-height:48px}
     #lic-easy-art .easy-near-save-status{font-size:13px;font-weight:800;color:#6743a7;margin:9px 2px 12px;line-height:1.45}
-    #lic-easy-art #easy-delete-selected{background:#f0e5ff;border-color:#aa85d4;min-height:48px}
-    #lic-easy-art #easy-delete-selected[hidden]{display:none!important}
+    #lic-easy-art #easy-delete-selected{background:#ffe3ed;border-color:#d47d9b;min-height:48px}
+    #lic-easy-art .easy-eraser-controls[hidden]{display:none!important}
+    #lic-easy-art .easy-eraser-controls{margin:12px 0;padding:12px;background:#fff9fd;border:2px solid #d6b9ee;border-radius:18px}
+    #lic-easy-art .easy-eraser-controls label{font-size:15px;font-weight:850;display:flex;gap:8px;align-items:center}
+    #lic-easy-art #easy-eraser-size{display:block;width:100%;max-width:100%;margin:15px 0;accent-color:#8657c9;min-height:28px}
+    #lic-easy-art .easy-eraser-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+    #lic-easy-art .easy-eraser-presets button{min-height:45px;font-size:13px;padding:8px 3px}
+    #lic-easy-art .easy-eraser-presets button[aria-pressed=true]{background:#7753ba;color:#fff;border-color:#7753ba}
     #lic-easy-art .easy-piece-hint{font-size:13px;line-height:1.5;margin:9px 0}
     #lic-easy-art .easy-piece-menu{background:#fffdf9;border:2px solid #ab81d7;
        padding:11px;border-radius:17px;margin:11px 0;box-shadow:0 5px 13px #55337817}
@@ -318,6 +334,7 @@
   const W = canvas.width, H = canvas.height;
   const items = [];
   let selected = null, tool = 'move', interaction = null, draft = null, pendingCut = null, zoom = 1;
+  let eraserHover=null;
   let showDropBin=false, pieceMenuOpen=false, holdTimer=null, holdPointer=null;
   const cancelHold=()=>{if(holdTimer!==null)clearTimeout(holdTimer);holdTimer=null;holdPointer=null;};
   let history = [{pieces:[],scene:-1}], step = 0, changed = false;
@@ -367,7 +384,8 @@
     $('easy-redo').disabled = step >= history.length - 1;
     $('easy-white').disabled = tool !== 'cut';
     if(!chosen()) {pieceMenuOpen=false;showDropBin=false;}
-    $('easy-delete-selected').hidden = !chosen();
+    $('easy-eraser-controls').hidden = tool !== 'erase';
+    updateEraserSizeLabel();
     $('easy-piece-menu').hidden = !(chosen() && pieceMenuOpen);
     if(chosen())$('easy-piece-name').textContent='✨ '+(chosen().name||'This piece')+' — what would you like to do?';
     $('easy-cut-confirm').hidden = !pendingCut;
@@ -378,6 +396,21 @@
     ui.querySelector('.easy-workspace-layout').classList.toggle('easy-bin-open',!bin.hidden);
     if(bin.hidden) bin.classList.remove('easy-trash-hover');
   }
+  function eraserWorldDiameter(){
+    const visualWidth=canvas.getBoundingClientRect().width || 350;
+    // Sizes are specified in visible CSS pixels, not the 800px internal canvas.
+    return Math.min(250, Math.max(2, Number($('easy-eraser-size').value)*W/visualWidth));
+  }
+  function updateEraserSizeLabel(){
+    const px=Number($('easy-eraser-size').value);
+    $('easy-eraser-label').textContent=px<=30?'Small':px>=78?'Large':'Medium';
+    ui.querySelectorAll('[data-eraser-px]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.eraserPx)===px)));
+  }
+  $('easy-eraser-size').addEventListener('input',()=>{updateEraserSizeLabel();render();});
+  ui.querySelectorAll('[data-eraser-px]').forEach(b=>b.addEventListener('click',()=>{
+    $('easy-eraser-size').value=b.dataset.eraserPx;
+    updateEraserSizeLabel();render();
+  }));
   function renderLayers(){
     const list=$('easy-layer-list');
     list.replaceChildren();
@@ -404,7 +437,7 @@
   $('easy-zoom-reset').addEventListener('click',()=>{zoom=1;canvas.style.width='100%';$('easy-zoom-level').textContent='100%';ui.querySelector('.easy-canvas-wrap').scrollTo(0,0);});
   $('easy-grab').addEventListener('click',()=>setTool('move'));
   function showPieceMenu(){
-    if(!chosen())return;
+    if(!chosen()){message('🗑️ To use the bin, tap ✋ Grab and choose the picture or line you want to throw away.');$('easy-canvas').scrollIntoView({behavior:'smooth',block:'center'});return;}
     tool='move';pieceMenuOpen=true;showDropBin=false;
     controls();render();
     message('✨ Choose what to do. Nothing is deleted until you confirm Throw away.');
@@ -490,6 +523,11 @@
     }
     if(pendingCut && pendingCut.kind==='magic' && pendingCut.preview){
       ctx.save();ctx.globalAlpha=.6;ctx.drawImage(pendingCut.preview,0,0);ctx.restore();
+    }
+    if(tool==='erase' && eraserHover){
+      ctx.save();ctx.beginPath();ctx.arc(eraserHover.x,eraserHover.y,eraserWorldDiameter()/2,0,Math.PI*2);
+      ctx.fillStyle='rgba(190,90,230,.13)';ctx.strokeStyle='#963ebe';ctx.lineWidth=2.5;
+      ctx.fill();ctx.stroke();ctx.restore();
     }
     const o=chosen();
     if (o && tool==='move') {
@@ -618,7 +656,7 @@
       add(c,$('easy-friend').selectedOptions[0].text);
     }catch(e){message('Character artwork unavailable. Please check your GitHub art sheet.');}
   });
-  function setTool(next) {cancelHold();tool=next;interaction=null;draft=null;pendingCut=null;pieceMenuOpen=false;showDropBin=false;controls();render();
+  function setTool(next) {cancelHold();tool=next;interaction=null;draft=null;pendingCut=null;eraserHover=null;pieceMenuOpen=false;showDropBin=false;controls();render();
     if((next==='paint'||next==='fill')&&!chosen())message('Tap Move and choose a picture first, then return to this tool.');
     else message(hints[next]);}
   ui.querySelectorAll('[data-easy-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.easyTool)));
@@ -664,12 +702,21 @@
       }
     });
   }
-  function brushErase(o,p) {
-    const v=local(o,p),scaleX=o.img.width/o.w,scaleY=o.img.height/o.h;
-    const radius=Number($('easy-brush').value)/(o.scale||1)*scaleX/2;
-    updateImage(o,(c)=>{c.save();c.globalCompositeOperation='destination-out';
-      c.beginPath();c.arc(v.x*scaleX,v.y*scaleY,Math.max(2,radius),0,Math.PI*2);
-      c.fill();c.restore();});
+  function brushErase(o,from,to=from) {
+    // Draw a continuous eraser stroke between touch events. This avoids leaving
+    // un-erased dots when a child rubs quickly, and respects pinch zoom.
+    const a=local(o,from),b=local(o,to);
+    const diameter=eraserWorldDiameter()/(o.scale||1);
+    const scaleX=o.img.width/o.w, scaleY=o.img.height/o.h;
+    updateImage(o,(c)=>{
+      c.save();c.globalCompositeOperation='destination-out';
+      c.scale(scaleX,scaleY);
+      c.lineWidth=diameter;c.lineJoin='round';c.lineCap='round';
+      c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();
+      // Also handles a simple single-finger tap with no movement.
+      c.beginPath();c.arc(b.x,b.y,diameter/2,0,Math.PI*2);c.fill();
+      c.restore();
+    });
   }
   function startHold(e,p,o){
     cancelHold();
@@ -705,8 +752,8 @@
       if(!hitItem){message('First tap Move and select a picture or line.');return;}
       selected=hitItem.id;
       // Separate the image layer before altering pixels; Undo keeps its earlier copy.
-      interaction={kind:tool,id:hitItem.id};
-      if(tool==='erase')brushErase(items.find(o=>o.id===hitItem.id),p);
+      interaction={kind:tool,id:hitItem.id,lastPoint:p};
+      if(tool==='erase'){eraserHover=p;brushErase(items.find(o=>o.id===hitItem.id),p);}
       else brushColour(items.find(o=>o.id===hitItem.id),p,tool==='fill');
       if(tool==='fill'){checkpoint();interaction=null;message('Colour changed! Tap Undo if it spread too far.');}
       render();return;
@@ -719,6 +766,7 @@
     if(!o)message('Tap directly on a picture or coloured line to select it.');
   });
   canvas.addEventListener('pointermove',e=>{
+    if(tool==='erase'){eraserHover=pos(e);if(!interaction)render();}
     if(holdPointer && holdPointer.id===e.pointerId &&
        Math.hypot(e.clientX-holdPointer.x,e.clientY-holdPointer.y)>12)cancelHold();
     if(!interaction)return;e.preventDefault();const p=pos(e);
@@ -729,7 +777,7 @@
       o.x=p.x-interaction.x;o.y=p.y-interaction.y;
       showBinTarget(e);render();
     }
-    if(interaction.kind==='erase'){brushErase(o,p);render();}
+    if(interaction.kind==='erase'){brushErase(o,interaction.lastPoint||p,p);interaction.lastPoint=p;eraserHover=p;render();}
     if(interaction.kind==='paint'){brushColour(o,p);render();}
   });
   function finishDraw(points){
@@ -855,7 +903,7 @@
       return;
     }
     if(i.kind==='erase'||i.kind==='paint'){
-      checkpoint();render();message(i.kind==='paint'?'You changed the colour! 🌈':'Erased! Tap Undo if you want it back.');return;}
+      eraserHover=null;checkpoint();render();message(i.kind==='paint'?'You changed the colour! 🌈':'Erased! Tap Undo if you want it back.');return;}
     if(i.kind==='move'){
       const o=items.find(item=>item.id===i.id);
       const distance=o?Math.hypot(o.x-i.startX,o.y-i.startY):0;
@@ -877,6 +925,7 @@
       render();if(o)message('Nice! Press and hold the piece or tap Piece options to see the bin. 💜');
     }
   });
+  canvas.addEventListener('pointerleave',()=>{if(tool==='erase'&&!interaction){eraserHover=null;render();}});
   canvas.addEventListener('pointercancel',()=>{
     cancelHold();
     if(interaction?.kind==='move'){
