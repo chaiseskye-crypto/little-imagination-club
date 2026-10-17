@@ -1,4 +1,4 @@
-/* Little Imagination Club — One Magical Art Studio 3.9.3 + Chippy Adventure Guide 3.10 (bin safeguards unchanged), unified child-friendly touch editor
+/* Little Imagination Club — One Magical Art Studio 3.14 + unified illustrated storybook (bin safeguards unchanged), unified child-friendly touch editor
  * Use instead of magic_workstation_v2.js: <script src="one_magical_studio.js"></script>
  * Editable projects autosave in this browser using IndexedDB. Manual PNG and project backups available.
  */
@@ -2241,7 +2241,7 @@
         writing.scrollIntoView({behavior:'smooth',block:'center'});
       }else{
         status('📖 Your story is ready! It is open now so you can read it straight away.');
-        showReader(story);
+        await openWorkshop('generated',story);
       }
     }finally{making=false;}
   }
@@ -2262,5 +2262,218 @@
     if(previewCoverURL)URL.revokeObjectURL(previewCoverURL);
     previewCoverURL=URL.createObjectURL(f);art.src=previewCoverURL;art.hidden=false;
   });
+  /* 3.14 – Alex's one-place illustrated storybook workshop.
+   * The same workshop is opened after writing or making a story. Art studio
+   * and the pre-existing IndexedDB autosave system are not modified.
+   */
+  const workshopCSS=doc.createElement('style');
+  workshopCSS.textContent=`
+  #lic-story-workshop[hidden]{display:none!important}
+  #lic-story-workshop{position:fixed;inset:0;z-index:2147483646;background:#f3ecff;display:flex;flex-direction:column;color:#382358;font-family:inherit;box-sizing:border-box;overflow:hidden;overscroll-behavior:contain}
+  #lic-story-workshop *{box-sizing:border-box}
+  #lic-work-header{flex:none;padding:11px max(12px,env(safe-area-inset-right)) 9px max(12px,env(safe-area-inset-left));background:linear-gradient(100deg,#f4e6ff,#e8fff4);box-shadow:0 2px 12px #452a6620;display:flex;align-items:center;gap:9px}
+  #lic-work-header .lic-work-brand{flex:1;min-width:0}
+  #lic-work-header strong{font-size:clamp(16px,4.5vw,23px);display:block;color:#39245f;line-height:1.23}
+  #lic-work-header small{display:block;font-size:12px;color:#6c587e}
+  #lic-story-workshop button{border:2px solid #cfb2e9;border-radius:13px;padding:9px 10px;min-height:44px;font:inherit;font-size:14px;font-weight:800;color:#432870;background:#fff;cursor:pointer;touch-action:manipulation}
+  #lic-story-workshop button:disabled{opacity:.54;cursor:not-allowed}
+  #lic-story-workshop button:focus-visible,#lic-story-workshop input:focus-visible,#lic-story-workshop textarea:focus-visible{outline:3px solid #6846ba;outline-offset:2px}
+  #lic-work-save{font-size:12px;max-width:120px;line-height:1.25;color:#6a5682}
+  #lic-work-body{overflow-y:auto;flex:1;min-height:0;padding:13px 13px 16px;-webkit-overflow-scrolling:touch}
+  #lic-work-sheet{max-width:640px;margin:0 auto;background:#fffcf8;border:3px solid #d6bde9;border-radius:20px;padding:12px;box-shadow:0 8px 22px #37235420}
+  #lic-work-title{width:100%;min-height:46px;border:2px solid #d9c4ee;border-radius:10px;padding:8px 10px;font:inherit;font-size:clamp(18px,5.2vw,25px);font-weight:900;text-align:center;color:#432968;background:white}
+  #lic-work-byl{display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0 10px;font-size:13px;color:#654f79}
+  #lic-work-author{width:160px;min-width:0;border:1px solid #d8c3eb;border-radius:9px;padding:6px;font:inherit;font-size:14px;color:#432968}
+  #lic-work-art-wrap{background:linear-gradient(140deg,#fff0fc,#ecfdf7);min-height:190px;max-height:250px;display:flex;align-items:center;justify-content:center;border-radius:15px;overflow:hidden}
+  #lic-work-art{display:block;width:100%;height:210px;object-fit:contain}
+  #lic-story-workshop [hidden]{display:none!important}
+  #lic-work-art-empty{padding:20px;font-size:16px;text-align:center;color:#695485}
+  #lic-work-page-label{text-align:center;font-weight:850;margin:12px 0 7px;font-size:14px;color:#6c518e}
+  #lic-work-prose{white-space:pre-wrap;line-height:1.58;font-size:clamp(15px,4.2vw,18px);min-height:92px;margin:9px 2px 13px;overflow-wrap:anywhere}
+  #lic-work-words{width:100%;min-height:180px;resize:vertical;padding:13px;line-height:1.55;border:2px solid #bda2e0;border-radius:14px;font:inherit;font-size:16px;color:#39265d;background:#fff}
+  #lic-work-sheet .lic-work-page-buttons{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:9px 0}
+  #lic-work-footer{flex:none;padding:9px 12px max(10px,env(safe-area-inset-bottom));background:#fff;border-top:2px solid #e2d2f2}
+  #lic-work-pager{display:flex;align-items:center;justify-content:space-between;gap:7px;max-width:640px;margin:0 auto 7px}
+  #lic-work-page-count{font-weight:850;color:#624785;white-space:nowrap}
+  #lic-work-toolbar{max-width:640px;margin:auto;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  #lic-work-toolbar button{font-size:12px;padding:8px 2px;line-height:1.2;background:#f5edff}
+  #lic-work-toolbar button:first-child{background:#e0f7e8;border-color:#91caad}
+  #lic-work-pictures[hidden],#lic-work-ask[hidden]{display:none!important}
+  #lic-work-pictures{margin:10px auto;padding:10px;background:#f7f0ff;border-radius:16px;border:2px solid #cfb4e8;max-width:640px}
+  #lic-work-pictures h4{margin:0 0 6px;font-size:17px}
+  #lic-work-pictures-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;max-height:270px;overflow-y:auto}
+  #lic-work-pictures-grid button{min-width:0;display:flex;align-items:center;flex-direction:column;gap:4px;font-size:12px;padding:6px}
+  #lic-work-pictures-grid img{height:74px;width:100%;object-fit:contain;border-radius:10px;background:#fff}
+  #lic-work-upload-pic{width:100%;font:inherit;font-size:13px;margin:10px 0 4px}
+  #lic-work-ask{position:absolute;inset:0;background:#2d1d4bba;display:grid;place-items:center;padding:20px;z-index:2}
+  #lic-work-ask section{background:white;border-radius:20px;padding:18px;max-width:430px;width:100%;text-align:center}
+  #lic-work-ask section div{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:15px}
+  #lic-work-status{max-width:640px;margin:6px auto 0;text-align:center;font-size:12px;color:#695488;min-height:1em}
+  @media(min-width:760px){#lic-story-workshop{background:#ded1f1}#lic-work-header,#lic-work-footer{padding-left:max(20px,calc((100vw - 720px)/2));padding-right:max(20px,calc((100vw - 720px)/2))}}
+  `;
+  doc.head.append(workshopCSS);
+  const workshop=doc.createElement('div');workshop.id='lic-story-workshop';workshop.hidden=true;
+  workshop.setAttribute('role','dialog');workshop.setAttribute('aria-modal','true');workshop.setAttribute('aria-label','My Magical Storybook Workshop');
+  workshop.innerHTML=`
+    <header id="lic-work-header"><div class="lic-work-brand"><strong>📖 My Magical Storybook</strong><small>🦁 Alex-approved: everything in one place!</small></div><span id="lic-work-save" role="status">Your book</span><button id="lic-work-close" type="button" aria-label="Close storybook">✕ Done</button></header>
+    <main id="lic-work-body"><div id="lic-work-sheet">
+      <input id="lic-work-title" aria-label="Story title" maxlength="100" placeholder="Name your magical story">
+      <label id="lic-work-byl">By <input id="lic-work-author" maxlength="60" aria-label="Author name" placeholder="Your name (optional)"></label>
+      <div id="lic-work-art-wrap"><img id="lic-work-art" alt="Picture for this storybook page" hidden><div id="lic-work-art-empty">🎨 Add a picture to bring this page to life!</div></div>
+      <p id="lic-work-page-label">Page 1</p><p id="lic-work-prose" hidden></p>
+      <textarea id="lic-work-words" aria-label="Words on this page" placeholder="Once upon a time…"></textarea>
+      <div class="lic-work-page-buttons"><button id="lic-work-edit" type="button">📖 Read this page</button><button id="lic-work-change-pic" type="button">🎨 Change picture</button><button id="lic-work-add-page" type="button">➕ Add a page</button><button id="lic-work-remove-page" type="button">🗑️ Remove page</button></div>
+      <p style="margin:9px 2px;font-size:13px;color:#6d577f">🎬 3D Mini Movie — coming later. Your storybook pages are the starting point for the movie.</p>
+    </div><div id="lic-work-pictures" hidden><h4>🐿️ Pick a picture for this page</h4><div id="lic-work-pictures-grid"></div><label style="display:block;font-weight:800;margin-top:10px">📷 Or choose your own picture<input id="lic-work-upload-pic" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="lic-work-pictures-close" type="button">💜 Back to my book</button></div></main>
+    <footer id="lic-work-footer"><div id="lic-work-pager"><button id="lic-work-prev" type="button">◀ Previous</button><span id="lic-work-page-count">1 / 1</span><button id="lic-work-next" type="button">Next ▶</button></div><div id="lic-work-toolbar"><button id="lic-work-listen" type="button">🔊 Listen</button><button id="lic-work-export" type="button">⬇️ My book</button><button id="lic-work-tools" type="button">💾 Save</button><button id="lic-work-movie" type="button" disabled aria-label="3D mini movie, coming soon">🎬 3D soon</button></div><p id="lic-work-status" role="status" aria-live="polite"></p></footer>
+    <div id="lic-work-ask" hidden><section><h3>🦁 Remove this page?</h3><p>You can keep your page if you change your mind.</p><div><button id="lic-work-keep" type="button">💜 Keep it</button><button id="lic-work-remove-confirm" type="button">🗑️ Remove</button></div></section></div>`;
+  doc.body.append(workshop);
+  const w=id=>workshop.querySelector('#'+id);
+  let bookPages=[],currentPage=0,editingPage=true,workOpen=false,workStoryId='',workLoad=0,workTimer=0;
+  let overflowBefore='',workOldFocus=null,saveToken=0;
+  // Store illustrated page layout separately from the existing (text-based)
+  // story draft in IndexedDB. Never store image data in localStorage.
+  let workDBPromise=null;
+  function bookDB(){
+    if(!workDBPromise)workDBPromise=new Promise(resolve=>{
+      try{const request=indexedDB.open('lic_illustrated_books_v1',1);
+        request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('books'))request.result.createObjectStore('books',{keyPath:'id'});};
+        request.onsuccess=()=>resolve(request.result);request.onerror=()=>resolve(null);
+      }catch(e){resolve(null);}
+    });return workDBPromise;
+  }
+  async function bookRecord(action,record){
+    const db=await bookDB();if(!db)return null;
+    return new Promise(resolve=>{
+      try{const tx=db.transaction('books',action==='get'?'readonly':'readwrite');const store=tx.objectStore('books');const req=action==='get'?store.get(record):store.put(record);
+        req.onsuccess=()=>resolve(action==='get'?req.result:true);req.onerror=()=>resolve(null);
+      }catch(e){resolve(null);}
+    });
+  }
+  function storyDraftId(){try{return localStorage.getItem('lic_active_story_draft_v1')||'draft';}catch(e){return 'draft';}}
+  function defaultIllustrations(){const ids=chosen.filter(id=>assets[id]);return ids.length?ids:['kyle','castle'];}
+  function chunksOf(text){const chunks=String(text||'').trim().split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);if(!chunks.length)return [''];
+    if(chunks.length<=8)return chunks;
+    const groups=Math.min(8,Math.max(5,Math.ceil(chunks.length/2)));
+    const per=Math.ceil(chunks.length/groups);const out=[];for(let i=0;i<chunks.length;i+=per)out.push(chunks.slice(i,i+per).join('\n\n'));return out;
+  }
+  function buildPagesFromText(text){const pics=defaultIllustrations();return chunksOf(text).map((words,i)=>({words,picture:{kind:'asset',id:pics[i%pics.length]}}));}
+  function statusWork(msg){w('lic-work-status').textContent=msg;}
+  function syncDraft(){
+    const title=$('club-title'),author=$('club-author'),story=$('club-writing');
+    if(title&&title.value!==w('lic-work-title').value){title.value=w('lic-work-title').value;title.dispatchEvent(new Event('input',{bubbles:true}));}
+    if(author&&author.value!==w('lic-work-author').value){author.value=w('lic-work-author').value;author.dispatchEvent(new Event('input',{bubbles:true}));}
+    const full=bookPages.map(p=>p.words).filter(s=>s.trim()).join('\n\n');
+    if(story&&story.value!==full){story.value=full;story.dispatchEvent(new Event('input',{bubbles:true}));}
+  }
+  function scheduleBookSave(){if(!workOpen)return;w('lic-work-save').textContent='Saving…';clearTimeout(workTimer);workTimer=setTimeout(()=>saveWorkshop(),450);}
+  async function saveWorkshop(){
+    if(!bookPages.length)return false;
+    syncDraft();const id=workStoryId,version=++saveToken;
+    const rec={id,updated:Date.now(),title:w('lic-work-title').value,author:w('lic-work-author').value,pages:bookPages.map(p=>({words:p.words,picture:p.picture?{...p.picture}:null}))};
+    const okay=await bookRecord('put',rec);
+    if(version===saveToken&&id===workStoryId){w('lic-work-save').textContent=okay?'✅ Saved on device':'⚠️ Backup needed';statusWork(okay?'Your illustrated pages are saved on this device.':'Your words are in the story draft, but pictures could not be saved. Download a copy.');}
+    return Boolean(okay);
+  }
+  function pictureUrl(p){if(!p)return '';if(p.kind==='asset')return assets[p.id]||'';if(p.kind==='photo'&&typeof p.src==='string')return p.src;return '';}
+  function setMode(edit){editingPage=Boolean(edit);w('lic-work-words').hidden=!editingPage;w('lic-work-prose').hidden=editingPage;w('lic-work-edit').textContent=editingPage?'📖 Read this page':'✏️ Change the words';}
+  function showPage(){
+    const page=bookPages[currentPage];if(!page)return;
+    const src=pictureUrl(page.picture);const img=w('lic-work-art');img.hidden=!src;w('lic-work-art-empty').hidden=!!src;
+    if(src)img.src=src;else img.removeAttribute('src');
+    w('lic-work-page-label').textContent='✨ Page '+(currentPage+1);
+    w('lic-work-words').value=page.words||'';w('lic-work-prose').textContent=page.words||'A magical story is waiting for your words…';
+    w('lic-work-page-count').textContent=(currentPage+1)+' / '+bookPages.length;
+    w('lic-work-prev').disabled=currentPage===0;w('lic-work-next').disabled=currentPage>=bookPages.length-1;
+    w('lic-work-remove-page').disabled=bookPages.length===1;
+    w('lic-work-pictures').hidden=true;
+    w('lic-work-body').scrollTop=0;
+  }
+  function refreshCurrent(){const page=bookPages[currentPage];if(!page)return;page.words=w('lic-work-words').value;w('lic-work-prose').textContent=page.words||'A magical story is waiting for your words…';syncDraft();scheduleBookSave();}
+  w('lic-work-words').addEventListener('input',refreshCurrent);
+  w('lic-work-title').addEventListener('input',()=>{syncDraft();scheduleBookSave();});
+  w('lic-work-author').addEventListener('input',()=>{syncDraft();scheduleBookSave();});
+  w('lic-work-edit').addEventListener('click',()=>{setMode(!editingPage);if(editingPage)w('lic-work-words').focus();});
+  function movePage(delta){if(currentPage+delta<0||currentPage+delta>=bookPages.length)return;currentPage+=delta;showPage();}
+  w('lic-work-prev').addEventListener('click',()=>movePage(-1));w('lic-work-next').addEventListener('click',()=>movePage(1));
+  w('lic-work-add-page').addEventListener('click',()=>{bookPages.splice(currentPage+1,0,{words:'',picture:null});currentPage++;setMode(true);showPage();syncDraft();scheduleBookSave();w('lic-work-words').focus();statusWork('A fresh page! Add words and a picture.');});
+  w('lic-work-remove-page').addEventListener('click',()=>{if(bookPages.length>1)w('lic-work-ask').hidden=false;});
+  w('lic-work-keep').addEventListener('click',()=>{w('lic-work-ask').hidden=true;});
+  w('lic-work-remove-confirm').addEventListener('click',()=>{if(bookPages.length>1){bookPages.splice(currentPage,1);currentPage=Math.min(currentPage,bookPages.length-1);showPage();syncDraft();scheduleBookSave();}w('lic-work-ask').hidden=true;});
+  function buildPicturePicker(){const grid=w('lic-work-pictures-grid');grid.replaceChildren();gallery.forEach(item=>{
+    const button=doc.createElement('button');button.type='button';
+    const img=doc.createElement('img');img.src=assets[item.id];img.alt='';const label=doc.createElement('span');label.textContent=item.short;
+    button.append(img,label);button.addEventListener('click',()=>{bookPages[currentPage].picture={kind:'asset',id:item.id};showPage();scheduleBookSave();statusWork('✨ Picture added to page '+(currentPage+1));});grid.append(button);
+  });}
+  w('lic-work-change-pic').addEventListener('click',()=>{w('lic-work-pictures').hidden=false;w('lic-work-pictures').scrollIntoView({block:'nearest'});});
+  w('lic-work-pictures-close').addEventListener('click',()=>{w('lic-work-pictures').hidden=true;w('lic-work-body').scrollTop=0;});
+  function smallPhoto(file){return new Promise((resolve,reject)=>{
+    if(!file||!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>5*1024*1024){reject(new Error('Choose a JPG, PNG or WebP image under 5 MB.'));return;}
+    const url=URL.createObjectURL(file),img=new Image();
+    img.onload=()=>{try{const ratio=Math.min(1,900/Math.max(img.naturalWidth,img.naturalHeight));const can=doc.createElement('canvas');can.width=Math.max(1,Math.round(img.naturalWidth*ratio));can.height=Math.max(1,Math.round(img.naturalHeight*ratio));can.getContext('2d').drawImage(img,0,0,can.width,can.height);resolve(can.toDataURL('image/jpeg',.77));}catch(e){reject(e);}finally{URL.revokeObjectURL(url);}};
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('That picture could not be opened.'));};img.src=url;
+  });}
+  w('lic-work-upload-pic').addEventListener('change',async()=>{const f=w('lic-work-upload-pic').files?.[0];if(!f)return;try{const data=await smallPhoto(f);if(!workOpen)return;bookPages[currentPage].picture={kind:'photo',src:data};showPage();scheduleBookSave();statusWork('📸 Your own picture is on this page!');}catch(e){statusWork(e.message);}w('lic-work-upload-pic').value='';});
+  w('lic-work-listen').addEventListener('click',()=>{
+    if(!('speechSynthesis'in window)){statusWork('Read-aloud is not supported here.');return;}
+    if(speechSynthesis.speaking){speechSynthesis.cancel();w('lic-work-listen').textContent='🔊 Listen';return;}
+    const u=new SpeechSynthesisUtterance(bookPages[currentPage]?.words||'');u.lang='en-AU';u.rate=.86;
+    u.onend=()=>{w('lic-work-listen').textContent='🔊 Listen';};u.onerror=()=>{w('lic-work-listen').textContent='🔊 Listen';};
+    speechSynthesis.speak(u);w('lic-work-listen').textContent='⏹ Stop';
+  });
+  // A portable illustrated HTML storybook can be opened and printed to PDF.
+  function htmlSafe(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function exportBook(){
+    const css='body{font-family:Georgia,serif;color:#3c3055;background:#f8f1ff;margin:0}article{max-width:740px;background:white;margin:20px auto;padding:22px;min-height:80vh;border-radius:16px;box-sizing:border-box}h1{text-align:center;font-family:Arial}img{width:100%;max-height:340px;object-fit:contain}p{font-size:19px;line-height:1.65;white-space:pre-wrap}small{display:block;text-align:center;margin:10px} @media print{body{background:white}article{break-after:page;margin:0;min-height:95vh;border-radius:0}}';
+    const pages=bookPages.map((p,i)=>`<article>${i===0?`<h1>${htmlSafe(w('lic-work-title').value||'My Magical Story')}</h1><small>By ${htmlSafe(w('lic-work-author').value||'Little Dreamer')}</small>`:''}${pictureUrl(p.picture)?`<img alt="Picture for page ${i+1}" src="${pictureUrl(p.picture)}">`:''}<small>Page ${i+1}</small><p>${htmlSafe(p.words)}</p></article>`).join('');
+    const result='<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+htmlSafe(w('lic-work-title').value||'My Story')+'</title><style>'+css+'</style><body>'+pages+'</body></html>';
+    const url=URL.createObjectURL(new Blob([result],{type:'text/html;charset=utf-8'}));const link=doc.createElement('a');link.href=url;link.download='my-magical-storybook.html';doc.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2500);
+    statusWork('💜 Downloaded your illustrated book. Open it to read or print to PDF.');
+  }
+  w('lic-work-export').addEventListener('click',exportBook);
+  w('lic-work-tools').addEventListener('click',async()=>{clearTimeout(workTimer);await saveWorkshop();statusWork('✅ Saved on this device. Download your book too for a backup!');});
+  async function closeWorkshop(){if(!workOpen)return;clearTimeout(workTimer);syncDraft();await saveWorkshop();workOpen=false;workshop.hidden=true;doc.body.style.overflow=overflowBefore;
+    try{speechSynthesis.cancel();}catch(e){}if(workOldFocus?.isConnected)workOldFocus.focus({preventScroll:true});}
+  w('lic-work-close').addEventListener('click',closeWorkshop);
+  workshop.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!w('lic-work-ask').hidden)w('lic-work-ask').hidden=true;else if(!w('lic-work-pictures').hidden)w('lic-work-pictures').hidden=true;else closeWorkshop();e.preventDefault();}});
+  async function openWorkshop(how='existing',directStory=''){
+    if(workOpen&&how==='existing'){return;}
+    // Reuse the current story draft. A fresh generated story takes priority over
+    // an older stored page layout. Never silently erase previously written text.
+    const id=storyDraftId(),text=String(directStory||$('club-writing')?.value||'');
+    const old=await bookRecord('get',id);const currentTitle=$('club-title')?.value||'My Magical Story';
+    const currentAuthor=$('club-author')?.value||'';
+    if(old?.pages?.length&&how!=='generated'&&old.pages.map(x=>x.words||'').filter(Boolean).join('\n\n')===text.trim()){
+      bookPages=old.pages;w('lic-work-title').value=old.title||currentTitle;w('lic-work-author').value=old.author||currentAuthor;
+    }else{
+      bookPages=buildPagesFromText(text);w('lic-work-title').value=currentTitle;w('lic-work-author').value=currentAuthor;
+      if(how==='generated'&&directStory&&String($('club-writing')?.value||'').trim()!==directStory.trim()){
+        bookPages=buildPagesFromText($('club-writing')?.value||directStory);
+      }
+      const upload=$('club-upload')?.files?.[0];if(upload){try{const photo=await smallPhoto(upload);bookPages[0].picture={kind:'photo',src:photo};}catch(e){console.warn(e);}}
+    }
+    if(!bookPages.length)bookPages=[{words:'',picture:{kind:'asset',id:'kyle'}}];
+    workStoryId=id;currentPage=0;
+    overflowBefore=doc.body.style.overflow;workOldFocus=doc.activeElement;
+    doc.body.style.overflow='hidden';workOpen=true;workshop.hidden=false;
+    w('lic-work-save').textContent='💜 Your book';statusWork(how==='generated'?'✨ Your illustrated storybook is ready!':'💜 Change anything you like right here.');
+    setMode(how==='own'||!text.trim());showPage();buildPicturePicker();
+    w('lic-work-body').scrollTop=0;w('lic-work-title').focus({preventScroll:true});
+    await saveWorkshop();
+  }
+  // Route ALL children into the same workshop rather than the old editor below.
+  $('chip-write').addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();openWorkshop('own');},true);
+  $('lic-story-own')?.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();openWorkshop('own');},true);
+  $('club-make')?.addEventListener('click',()=>{if(!workOpen)setTimeout(()=>{if(!workOpen)openWorkshop('existing');},30);});
+  const start=doc.createElement('button');start.type='button';start.id='lic-open-workshop';start.textContent='📖 Open My Storybook Workshop';
+  start.style.cssText='display:block;background:#7053bb;color:white;border:2px solid #7053bb;border-radius:15px;min-height:49px;font:inherit;font-weight:800;padding:10px 13px;width:100%;margin:9px 0';
+  start.addEventListener('click',()=>openWorkshop('existing'));
+  box.querySelector('.chip-action-row').after(start);
+  const editorShortcut=start.cloneNode(true);editorShortcut.id='lic-open-workshop-from-create';editorShortcut.addEventListener('click',()=>openWorkshop('existing'));
+  intro.after(editorShortcut);
+  // Opening My Creations reuses the existing save/restore system; story text
+  // still autosaves as before. On another device the illustrated layout needs
+  // the separately downloadable illustrated HTML file.
+
   renderPages();renderCategory();
 })();
