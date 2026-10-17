@@ -120,8 +120,8 @@
         <canvas id="easy-canvas" width="800" height="600" aria-label="Drag or draw on your magical canvas"></canvas>
       </div>
       <div class="easy-bin-rail">
-        id="easy-trash-target" aria-hidden="false"
-          <span aria-hidden="true">🗑️</span><strong>BIN</strong><small>Drop here</small>
+      <div class="easy-trash-target" id="easy-trash-target" aria-hidden="false">
+  <span aria-hidden="true">🗑️</span><strong>BIN</strong><small>Drop here</small>
         </div>
       </div>
     </div>
