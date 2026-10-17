@@ -350,7 +350,8 @@
     #lic-easy-art .easy-end button{flex:1 1 90px}
     #lic-easy-art #easy-save{background:#7552bb;color:white;flex:2 1 180px}
     #lic-easy-art .easy-small{font-size:12px;color:#6b587c}
-    #lic-easy-art .easy-paint{margin-bottom:12px}
+ @media(max-width:600px){#lic-easy-art .easy-workspace-layout{grid-template-columns:minmax(0,1fr)}#lic-easy-art .easy-bin-rail{justify-content:flex-end}#lic-easy-art .easy-trash-target{max-width:120px;min-height:85px}}
+ #lic-easy-art .easy-paint{margin-bottom:12px}
     #lic-drawing-studio, #lic-mix-studio{display:none!important}
     @media(max-width:385px){#lic-easy-art{padding:9px}#lic-easy-art .easy-tools{gap:3px}}
   `;
