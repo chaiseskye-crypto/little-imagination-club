@@ -1376,7 +1376,7 @@
       if(storyPicture)await restoreStoryPicture(storyPicture);
       else{const upload=document.getElementById('club-upload');if(upload)upload.value='';const art=document.getElementById('club-book-art');if(art){art.hidden=true;art.removeAttribute('src');}}
       // Generate the existing book preview from saved fields; no new content is invented.
-      if(storyFinished&&document.getElementById('club-make'))document.getElementById('club-make').click();
+if(storyFinished)document.getElementById('club-preview')?.setAttribute('hidden','');
       else if(document.getElementById('club-preview'))document.getElementById('club-preview').hidden=true;
       storyStatus.textContent='✅ Opened '+storyName+' — keep writing!';
     }finally{storyRestore=false;}
