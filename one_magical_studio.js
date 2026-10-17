@@ -1,4 +1,4 @@
-/* Little Imagination Club — One Magical Art Studio 3.9.2 (always-visible bin and direct safe-delete + properly scaled eraser), unified child-friendly touch editor
+/* Little Imagination Club — One Magical Art Studio 3.9.3 (Bertie-proof friendly deletion and single-prompt safeguard), unified child-friendly touch editor
  * Use instead of magic_workstation_v2.js: <script src="one_magical_studio.js"></script>
  * Editable projects autosave in this browser using IndexedDB. Manual PNG and project backups available.
  */
@@ -143,6 +143,17 @@
       <button id="easy-save-now" type="button">💾 Save now</button>
     </div>
     <p id="easy-near-save-status" class="easy-near-save-status" role="status" aria-live="polite">⏳ Checking saved creations…</p>
+    <div class="easy-delete-overlay" id="easy-delete-confirmation" role="dialog" aria-modal="true" aria-labelledby="easy-delete-title" hidden>
+      <div class="easy-delete-card">
+        <div aria-hidden="true" class="easy-delete-emoji">🐭🗑️</div>
+        <h4 id="easy-delete-title">Throw this piece away?</h4>
+        <p id="easy-delete-description">You can always tap Oops! Undo to bring it back.</p>
+        <div class="easy-delete-actions">
+          <button id="easy-delete-keep" type="button">💜 Keep it</button>
+          <button id="easy-delete-yes" type="button">🗑️ Throw away</button>
+        </div>
+      </div>
+    </div>
     <div class="easy-cut-confirm" id="easy-cut-confirm" hidden>
       <strong>✂️ Happy with this selection?</strong>
       <button id="easy-cut-done" type="button">✅ Done — cut it</button>
@@ -290,6 +301,21 @@
     #lic-easy-art #easy-delete-selected{background:#f4e9ff;border-color:#c692df;min-height:48px}
     #lic-easy-art #easy-quick-delete{background:#ffe3ed;border-color:#d47d9b;min-height:48px}
     #lic-easy-art #easy-quick-delete:disabled{opacity:.54;cursor:not-allowed}
+    /* Child-friendly confirmation: one choice per gesture, never a browser website alert. */
+    #lic-easy-art .easy-delete-overlay[hidden]{display:none!important}
+    #lic-easy-art .easy-delete-overlay{position:fixed;inset:0;z-index:2147483640;
+      background:rgba(39,26,61,.62);display:flex;align-items:center;justify-content:center;
+      padding:20px;overscroll-behavior:contain}
+    #lic-easy-art .easy-delete-card{background:#fffafb;color:#452b69;
+      border:3px solid #dfbbee;border-radius:25px;padding:22px 16px;
+      width:min(100%,400px);text-align:center;box-shadow:0 16px 45px #29153a55}
+    #lic-easy-art .easy-delete-card h4{font-size:1.3rem;margin:7px 0 9px}
+    #lic-easy-art .easy-delete-card p{font-size:1rem;line-height:1.4;margin:5px 0 18px}
+    #lic-easy-art .easy-delete-emoji{font-size:45px}
+    #lic-easy-art .easy-delete-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    #lic-easy-art #easy-delete-keep{background:#e6f7ee;border-color:#69b58b}
+    #lic-easy-art #easy-delete-yes{background:#ffe1ec;border-color:#ca719b}
+    #lic-easy-art .easy-delete-actions button{min-height:54px;padding:10px 5px;font-size:15px;font-weight:850}
     #lic-easy-art .easy-eraser-controls[hidden]{display:none!important}
     #lic-easy-art .easy-eraser-controls{margin:12px 0;padding:12px;background:#fff9fd;border:2px solid #d6b9ee;border-radius:18px}
     #lic-easy-art .easy-eraser-controls label{font-size:15px;font-weight:850;display:flex;gap:8px;align-items:center}
@@ -340,6 +366,7 @@
   let selected = null, tool = 'move', interaction = null, draft = null, pendingCut = null, zoom = 1;
   let eraserHover=null;
   let showDropBin=false, pieceMenuOpen=false, holdTimer=null, holdPointer=null;
+  let pendingDeletionId=null; // One selected piece and one confirmation at a time.
   const cancelHold=()=>{if(holdTimer!==null)clearTimeout(holdTimer);holdTimer=null;holdPointer=null;};
   let history = [{pieces:[],scene:-1}], step = 0, changed = false;
   const message = s => { $('easy-status').textContent = s; };
@@ -469,17 +496,37 @@
     showDropBin=true;pieceMenuOpen=false;controls();render();
     message('🗑️ Bin is beside your drawing. Drag your piece over it, then confirm before throwing away.');
   });
+  // Never let a single drag create repeated browser-native confirmation dialogs.
+  // This small in-page choice is easier for children and won't steal touch focus.
   function askToDeletePiece(){
+    if(pendingDeletionId!==null)return;
     const o=chosen();if(!o)return;
-    // A deliberate second action protects children from accidental loss.
-    if(!confirm('Throw away '+(o.name||'this piece')+'? You can tap Oops! Undo to bring it back.')){
-      showDropBin=false;pieceMenuOpen=false;controls();render();
-      message('💜 Kept your piece safe.');return;
-    }
-    items.splice(items.findIndex(item=>item.id===o.id),1);
-    selected=null;pendingCut=null;showDropBin=false;pieceMenuOpen=false;
-    checkpoint();render();message('🗑️ Piece removed. Tap ↩️ Oops! Undo if you want it back.');
+    pendingDeletionId=o.id;
+    const dlg=$('easy-delete-confirmation');
+    $('easy-delete-title').textContent='Throw away '+(o.name||'this piece')+'?';
+    $('easy-delete-description').textContent='Only this one piece will go. You can tap Oops! Undo to bring it back.';
+    showBinTarget(null);
+    dlg.hidden=false;
+    $('easy-delete-keep').focus();
   }
+  function resolveDelete(shouldDelete){
+    // Clear this first: even a rapid double-tap can resolve only once.
+    const id=pendingDeletionId;
+    if(id===null)return;
+    pendingDeletionId=null;
+    $('easy-delete-confirmation').hidden=true;
+    const index=items.findIndex(o=>o.id===id);
+    if(shouldDelete && index!==-1){
+      items.splice(index,1);
+      selected=null;pendingCut=null;showDropBin=false;pieceMenuOpen=false;
+      checkpoint();render();message('🗑️ One piece removed. Tap ↩️ Oops! Undo to bring it back.');
+    }else{
+      showDropBin=false;pieceMenuOpen=false;
+      controls();render();message('💜 Kept your piece safe.');
+    }
+  }
+  $('easy-delete-keep').addEventListener('click',()=>resolveDelete(false));
+  $('easy-delete-yes').addEventListener('click',()=>resolveDelete(true));
   $('easy-piece-delete').addEventListener('click',askToDeletePiece);
   // The simplest mobile fallback: choose a piece, tap delete, confirm. No dragging needed.
   $('easy-quick-delete').addEventListener('click',()=>{
@@ -756,6 +803,7 @@
     },650);
   }
   canvas.addEventListener('pointerdown',e=>{
+    if(pendingDeletionId!==null)return;
     if(e.button!==undefined && e.button!==0) return;
     e.preventDefault();const p=pos(e);canvas.setPointerCapture(e.pointerId);
     if(tool==='draw'){
@@ -909,6 +957,7 @@
     controls();render();
   }
   canvas.addEventListener('pointerup',e=>{
+    if(pendingDeletionId!==null)return;
     cancelHold();
     const i=interaction;interaction=null;if(!i)return;
     if(i.kind==='draw'){const points=draft;draft=null;if(points?.length)finishDraw(points);return;}
