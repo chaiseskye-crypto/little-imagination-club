@@ -107,11 +107,11 @@
     <p class="easy-small">For a closer look, zoom in, then slide around the picture. Zoom does not resize the saved artwork.</p>
     <div class="easy-eraser-controls" id="easy-eraser-controls" hidden>
       <label for="easy-eraser-size">🧽 Eraser size: <strong id="easy-eraser-label">Medium</strong></label>
-      <input type="range" id="easy-eraser-size" min="10" max="110" step="2" value="54" aria-label="Eraser diameter on screen">
+      <input type="range" id="easy-eraser-size" min="10" max="200" step="2" value="54" aria-label="Eraser diameter on screen">
       <div class="easy-eraser-presets" role="group" aria-label="Eraser sizes">
         <button type="button" data-eraser-px="18">Small</button>
         <button type="button" data-eraser-px="54">Medium</button>
-        <button type="button" data-eraser-px="100">Large</button>
+        <button type="button" data-eraser-px="200">Large</button>
       </div>
       <p class="easy-small">The circle shows exactly how much will rub out. Your drawings are safe until you touch them.</p>
     </div>
