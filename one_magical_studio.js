@@ -1814,7 +1814,7 @@
 })();
 
 
-/* Little Imagination Club 3.12 — Chippy's Story Choices + Instant Story Maker.
+/* Little Imagination Club 3.13 — Chippy's Story Choices + Instant Story Maker + Instant Book Reader.
  * Built on top of the existing Picture Adventure tab. No changes to studio,
  * Bertie's bin confirmation, IndexedDB, classic picture indices or saved books.
  * Uses the actual Cute World artwork already embedded in this JavaScript file.
@@ -1901,6 +1901,23 @@
     #chip-question-card button:focus-visible{outline:4px solid #6c48ab;outline-offset:2px}
     #chip-question-no{background:#e7f9ee;border-color:#6db899}
     #chip-question-yes{background:#f5e1ff;border-color:#b88bdc}
+    /* 3.13: Show the new story immediately, even on tall phone pages. */
+    #lic-chippy-book-reader[hidden]{display:none!important}
+    #lic-chippy-book-reader{position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;justify-content:center;padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));background:rgba(37,26,60,.76);overscroll-behavior:contain}
+    #lic-chippy-reader-card{box-sizing:border-box;width:min(100%,670px);max-height:calc(100dvh - 22px);display:flex;flex-direction:column;min-height:0;overflow:hidden;border:3px solid #d7bae9;border-radius:22px;background:#fffdf8;color:#3a285b;box-shadow:0 18px 55px #140c2899}
+    #lic-chippy-reader-top{padding:14px 15px 9px;text-align:center;background:linear-gradient(125deg,#f8eaff,#e9fff3);border-bottom:2px solid #e6d5f6}
+    #lic-chippy-reader-top .lic-reader-eyebrow{font-size:.83rem;font-weight:800;color:#684d91}
+    #lic-chippy-reader-top h3{margin:5px 0 3px;font-size:clamp(19px,5vw,26px);line-height:1.25;color:#492e78}
+    #lic-chippy-reader-top p{margin:1px 0 2px;font-size:.85rem}
+    #lic-chippy-reader-content{padding:14px 18px;overflow-y:auto;min-height:0;flex:1;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+    #lic-chippy-reader-art{width:auto;max-width:100%;max-height:190px;object-fit:contain;border-radius:12px;display:block;margin:4px auto 12px}
+    #lic-chippy-reader-art[hidden]{display:none!important}
+    #lic-chippy-reader-text p{font-size:clamp(15px,4.2vw,18px);line-height:1.75;margin:0 0 15px;overflow-wrap:anywhere;white-space:pre-wrap}
+    #lic-chippy-reader-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px 12px 12px;border-top:2px solid #e6d5f6;background:#fffafb}
+    #lic-chippy-reader-actions button{font:inherit;font-size:clamp(13px,3.8vw,16px);font-weight:800;line-height:1.3;padding:9px 6px;min-height:48px;min-width:0;border:2px solid #bda4df;background:#f2e6ff;color:#462d72;border-radius:13px;cursor:pointer;touch-action:manipulation}
+    #lic-chippy-reader-actions button:first-child{background:#e4f8ec;border-color:#82bc9d}
+    #lic-chippy-reader-actions button:focus-visible{outline:3px solid #684caf;outline-offset:2px}
+    #lic-chippy-reader-close{position:absolute;right:14px;top:14px}
     #lic-classic-picture-prompts{margin:18px 0;padding:12px;border-radius:16px;border:2px solid #e7daf4;background:white}
     #lic-classic-picture-prompts summary{font-weight:750;color:#533c87;cursor:pointer;padding:7px}
     #lic-classic-picture-prompts .pic-grid{grid-template-columns:repeat(auto-fill,minmax(115px,1fr))}
@@ -1960,6 +1977,80 @@
     </div>
   </div>`;
   doc.body.append(question);
+  // Give children their new book right where they are; never make them hunt down the page.
+  const reader=doc.createElement('div');reader.id='lic-chippy-book-reader';reader.hidden=true;
+  reader.setAttribute('role','dialog');reader.setAttribute('aria-modal','true');
+  reader.setAttribute('aria-labelledby','lic-chippy-reader-title');
+  reader.innerHTML=`<section id="lic-chippy-reader-card">
+    <header id="lic-chippy-reader-top">
+      <div class="lic-reader-eyebrow">🐿️✨ Chippy made your story!</div>
+      <h3 id="lic-chippy-reader-title">Your magical story</h3>
+      <p id="lic-chippy-reader-by"></p>
+    </header>
+    <div id="lic-chippy-reader-content" tabindex="0" aria-label="Read your new story">
+      <img id="lic-chippy-reader-art" alt="Your story picture" hidden>
+      <div id="lic-chippy-reader-text"></div>
+    </div>
+    <div id="lic-chippy-reader-actions">
+      <button id="lic-reader-listen" type="button">🔊 Read to me</button>
+      <button id="lic-reader-edit" type="button">✏️ Change my story</button>
+      <button id="lic-reader-book" type="button">📖 Book tools</button>
+      <button id="lic-reader-back" type="button">🐿️ Back to Chippy</button>
+    </div>
+  </section>`;
+  doc.body.append(reader);
+  let readerOldFocus=null,readerCoverUrl='',readerOldOverflow='';
+  function closeReader(destination){
+    if(reader.hidden)return;
+    reader.hidden=true;doc.body.style.overflow=readerOldOverflow;
+    if(readerCoverUrl){URL.revokeObjectURL(readerCoverUrl);readerCoverUrl='';}
+    const old=readerOldFocus;readerOldFocus=null;
+    if(destination==='edit'){
+      doc.querySelector('#create .creator-tabs [data-mode="write"]')?.click();
+      const input=doc.getElementById('club-writing');
+      input?.scrollIntoView({behavior:'smooth',block:'center'});input?.focus({preventScroll:true});
+    }else if(destination==='book'){
+      const preview=doc.getElementById('club-preview');
+      preview?.scrollIntoView({behavior:'smooth',block:'start'});
+    }else if(old?.isConnected){old.focus({preventScroll:true});}
+  }
+  reader.querySelector('#lic-reader-back').addEventListener('click',()=>closeReader());
+  reader.querySelector('#lic-reader-edit').addEventListener('click',()=>closeReader('edit'));
+  reader.querySelector('#lic-reader-book').addEventListener('click',()=>closeReader('book'));
+  reader.querySelector('#lic-reader-listen').addEventListener('click',()=>{
+    doc.getElementById('club-read')?.click();
+    reader.querySelector('#lic-reader-listen').textContent='🔊 Read aloud again';
+  });
+  reader.addEventListener('click',event=>{if(event.target===reader)closeReader();});
+  reader.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){event.preventDefault();closeReader();}
+    if(event.key==='Tab'){
+      const buttons=[...reader.querySelectorAll('button:not([disabled])')];
+      if(event.shiftKey&&doc.activeElement===buttons[0]){event.preventDefault();buttons[buttons.length-1].focus();}
+      else if(!event.shiftKey&&doc.activeElement===buttons[buttons.length-1]){event.preventDefault();buttons[0].focus();}
+    }
+  });
+  function showReader(story){
+    const title=doc.getElementById('club-book-title')?.textContent||'My magical story';
+    const by=doc.getElementById('club-book-by')?.textContent||'';
+    reader.querySelector('#lic-chippy-reader-title').textContent=title;
+    reader.querySelector('#lic-chippy-reader-by').textContent=by;
+    const text=reader.querySelector('#lic-chippy-reader-text');text.replaceChildren();
+    String(story).split(/\n\s*\n/).filter(Boolean).forEach(chunk=>{
+      const p=doc.createElement('p');p.textContent=chunk;text.append(p);
+    });
+    const art=reader.querySelector('#lic-chippy-reader-art');art.hidden=true;art.removeAttribute('src');
+    const f=doc.getElementById('club-upload')?.files?.[0];
+    if(f&&/^image\/(png|jpeg|webp)$/.test(f.type)){
+      if(readerCoverUrl)URL.revokeObjectURL(readerCoverUrl);
+      readerCoverUrl=URL.createObjectURL(f);art.src=readerCoverUrl;art.hidden=false;
+    }
+    readerOldFocus=doc.activeElement;readerOldOverflow=doc.body.style.overflow;
+    doc.body.style.overflow='hidden';reader.hidden=false;
+    reader.querySelector('#lic-reader-listen').textContent='🔊 Read to me';
+    reader.querySelector('#lic-chippy-reader-content').scrollTop=0;
+    reader.querySelector('#lic-chippy-reader-content').focus({preventScroll:true});
+  }
   let questionResolve=null;let questionOldFocus=null;
   const questionNo=question.querySelector('#chip-question-no');
   const questionYes=question.querySelector('#chip-question-yes');
@@ -2145,8 +2236,13 @@
       await attachSelectedCover();
       doc.querySelector('#create .creator-tabs [data-mode="write"]')?.click();
       $('club-make')?.click();
-      status('📖 Your instant story is ready! Read it, change the words, listen aloud or save your book.');
-      (doc.getElementById('club-preview')?.hidden?writing:doc.getElementById('club-preview'))?.scrollIntoView({behavior:'smooth',block:'start'});
+      if(doc.getElementById('club-preview')?.hidden){
+        status('The story was written, but the book preview did not open. Tap Book tools or open your writing to continue.');
+        writing.scrollIntoView({behavior:'smooth',block:'center'});
+      }else{
+        status('📖 Your story is ready! It is open now so you can read it straight away.');
+        showReader(story);
+      }
     }finally{making=false;}
   }
   $('chip-auto').addEventListener('click',makeStoryForMe);
