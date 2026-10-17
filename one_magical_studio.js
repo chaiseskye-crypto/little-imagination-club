@@ -107,11 +107,11 @@
     <p class="easy-small">For a closer look, zoom in, then slide around the picture. Zoom does not resize the saved artwork.</p>
     <div class="easy-eraser-controls" id="easy-eraser-controls" hidden>
       <label for="easy-eraser-size">🧽 Eraser size: <strong id="easy-eraser-label">Medium</strong></label>
-      <input type="range" id="easy-eraser-size" min="10" max="200" step="2" value="54" aria-label="Eraser diameter on screen">
+      <input type="range" id="easy-eraser-size" min="10" max="110" step="2" value="54" aria-label="Eraser diameter on screen">
       <div class="easy-eraser-presets" role="group" aria-label="Eraser sizes">
         <button type="button" data-eraser-px="18">Small</button>
         <button type="button" data-eraser-px="54">Medium</button>
-        <button type="button" data-eraser-px="200">Large</button>
+        <button type="button" data-eraser-px="100">Large</button>
       </div>
       <p class="easy-small">The circle shows exactly how much will rub out. Your drawings are safe until you touch them.</p>
     </div>
@@ -120,8 +120,8 @@
         <canvas id="easy-canvas" width="800" height="600" aria-label="Drag or draw on your magical canvas"></canvas>
       </div>
       <div class="easy-bin-rail">
-      <div class="easy-trash-target" id="easy-trash-target" aria-hidden="false">
-  <span aria-hidden="true">🗑️</span><strong>BIN</strong><small>Drop here</small>
+        <div class="easy-trash-target" id="easy-trash-target" hidden aria-hidden="true">
+          <span aria-hidden="true">🗑️</span><strong>BIN</strong><small>Drop here</small>
         </div>
       </div>
     </div>
@@ -391,8 +391,9 @@
     $('easy-cut-confirm').hidden = !pendingCut;
     $('easy-layer-count').textContent=String(items.length);
     renderLayers();
-   bin.hidden = false;
-      ui.querySelector('.easy-workspace-layout').classList.toggle('easy-bin-open',!bin.hidden);
+    const bin=$('easy-trash-target');
+    bin.hidden = !(showDropBin && tool==='move' && chosen());
+    ui.querySelector('.easy-workspace-layout').classList.toggle('easy-bin-open',!bin.hidden);
     if(bin.hidden) bin.classList.remove('easy-trash-hover');
   }
   function eraserWorldDiameter(){
