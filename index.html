@@ -5,7 +5,8 @@ if('scrollRestoration' in history)history.scrollRestoration='manual';
 window.addEventListener('pageshow',()=>{
   if(!location.hash||location.hash==='#top')window.scrollTo(0,0);
 });
-</script>
+  window.addEventListener('load',()=>{if(!location.hash||location.hash==='#top')setTimeout(()=>window.scrollTo({top:0,left:0,behavior:'instant'}),1200);});</script>
+  
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="A magical little corner for children's stories, imagination and adventures.">
