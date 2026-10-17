@@ -1,4 +1,4 @@
-/* Little Imagination Club — One Magical Art Studio 3.9 (clear bin + properly scaled eraser), unified child-friendly touch editor
+/* Little Imagination Club — One Magical Art Studio 3.9.1 (stable drag-to-bin + properly scaled eraser), unified child-friendly touch editor
  * Use instead of magic_workstation_v2.js: <script src="one_magical_studio.js"></script>
  * Editable projects autosave in this browser using IndexedDB. Manual PNG and project backups available.
  */
@@ -277,6 +277,7 @@
     #lic-easy-art .easy-trash-target strong{font-size:clamp(12px,3vw,17px);line-height:1.1}
     #lic-easy-art .easy-trash-target small{font-size:clamp(9px,2.2vw,12px);line-height:1.1;overflow-wrap:anywhere}
     #lic-easy-art .easy-trash-target.easy-trash-hover{background:#ffe5a9;border-color:#d25c2f;}
+    #lic-easy-art .easy-trash-target.easy-bin-waiting{opacity:.65;border-color:#c8a3d8;background:#fcf2ff}
     @media (max-width:380px){#lic-easy-art .easy-workspace-layout{gap:5px;grid-template-columns:minmax(0,1fr) 66px}
       #lic-easy-art .easy-trash-target{border-width:3px;border-radius:13px;min-height:99px;padding:4px 1px}}
 
@@ -392,9 +393,16 @@
     $('easy-layer-count').textContent=String(items.length);
     renderLayers();
     const bin=$('easy-trash-target');
-    bin.hidden = !(showDropBin && tool==='move' && chosen());
+    // Keep the bin rail stationary throughout Grab & Move, including before the
+    // first tap and while dragging. Hiding it when pointerdown resets the prior
+    // showDropBin flag made the target disappear under a child's finger.
+    // Reserving its column before selection avoids the canvas jumping sideways.
+    bin.hidden = tool !== 'move';
+    bin.classList.toggle('easy-bin-waiting', !chosen());
+    bin.querySelector('small').textContent = chosen() ? 'Drop here' : 'Grab first';
+    bin.setAttribute('aria-hidden', String(bin.hidden));
     ui.querySelector('.easy-workspace-layout').classList.toggle('easy-bin-open',!bin.hidden);
-    if(bin.hidden) bin.classList.remove('easy-trash-hover');
+    if(bin.hidden || !chosen()) bin.classList.remove('easy-trash-hover');
   }
   function eraserWorldDiameter(){
     const visualWidth=canvas.getBoundingClientRect().width || 350;
@@ -457,7 +465,7 @@
   });
   $('easy-piece-show-bin').addEventListener('click',()=>{
     showDropBin=true;pieceMenuOpen=false;controls();render();
-    message('🗑️ Bin is ready beside the drawing. Drop your piece there, then choose whether to throw it away.');
+    message('🗑️ Bin is beside your drawing. Drag your piece over it, then confirm before throwing away.');
   });
   function askToDeletePiece(){
     const o=chosen();if(!o)return;
@@ -486,8 +494,10 @@
   function overBin(e){
     const bin=$('easy-trash-target');if(bin.hidden)return false;
     const r=bin.getBoundingClientRect();
-    return e.clientX>=r.left && e.clientX<=r.right &&
-           e.clientY>=r.top && e.clientY<=r.bottom;
+    // A little extra finger-sized tolerance makes the small mobile target easier.
+    const tolerance=12;
+    return e.clientX>=r.left-tolerance && e.clientX<=r.right+tolerance &&
+           e.clientY>=r.top-tolerance && e.clientY<=r.bottom+tolerance;
   }
   function showBinTarget(e){
     $('easy-trash-target').classList.toggle('easy-trash-hover',!!e && overBin(e));
@@ -908,7 +918,7 @@
       const o=items.find(item=>item.id===i.id);
       const distance=o?Math.hypot(o.x-i.startX,o.y-i.startY):0;
       // Even a deliberate drag to the bin asks for confirmation: never auto-delete artwork.
-      if(o && showDropBin && distance>=18 && overBin(e)){
+      if(o && tool==='move' && distance>=18 && overBin(e)){
         o.x=i.startX;o.y=i.startY;
         showDropBin=false;pieceMenuOpen=true;controls();render();
         message('🗑️ Is this the piece you want to throw away? Choose Throw away or Done below.');
