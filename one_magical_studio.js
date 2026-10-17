@@ -2586,8 +2586,8 @@
   // Route ALL children into the same workshop rather than the old editor below.
   $('chip-write').addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();openWorkshop('own');},true);
   $('lic-story-own')?.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();openWorkshop('own');},true);
-  $('club-make')?.addEventListener('click',()=>{if(!workOpen)setTimeout(()=>{if(!workOpen)openWorkshop('existing');},30);});
-  const start=doc.createElement('button');start.type='button';start.id='lic-open-workshop';start.textContent='📖 Open My Storybook Workshop';
+$('club-make')?.addEventListener('click',e=>{if(!e.isTrusted)return;if(!workOpen)setTimeout(()=>{if(!workOpen)openWorkshop('existing');},30);});
+   const start=doc.createElement('button');start.type='button';start.id='lic-open-workshop';start.textContent='📖 Open My Storybook Workshop';
   start.style.cssText='display:block;background:#7053bb;color:white;border:2px solid #7053bb;border-radius:15px;min-height:49px;font:inherit;font-weight:800;padding:10px 13px;width:100%;margin:9px 0';
   start.addEventListener('click',()=>openWorkshop('existing'));
   box.querySelector('.chip-action-row').after(start);
