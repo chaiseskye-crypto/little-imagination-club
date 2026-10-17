@@ -120,7 +120,7 @@
         <canvas id="easy-canvas" width="800" height="600" aria-label="Drag or draw on your magical canvas"></canvas>
       </div>
       <div class="easy-bin-rail">
-        <div class="easy-trash-target" id="easy-trash-target" hidden aria-hidden="true">
+        id="easy-trash-target" aria-hidden="false"
           <span aria-hidden="true">🗑️</span><strong>BIN</strong><small>Drop here</small>
         </div>
       </div>
@@ -391,9 +391,8 @@
     $('easy-cut-confirm').hidden = !pendingCut;
     $('easy-layer-count').textContent=String(items.length);
     renderLayers();
-    const bin=$('easy-trash-target');
-    bin.hidden = !(showDropBin && tool==='move' && chosen());
-    ui.querySelector('.easy-workspace-layout').classList.toggle('easy-bin-open',!bin.hidden);
+   bin.hidden = false;
+      ui.querySelector('.easy-workspace-layout').classList.toggle('easy-bin-open',!bin.hidden);
     if(bin.hidden) bin.classList.remove('easy-trash-hover');
   }
   function eraserWorldDiameter(){
