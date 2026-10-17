@@ -1814,7 +1814,7 @@
 })();
 
 
-/* Little Imagination Club 3.10 — Chippy's Helpful Picture Adventure.
+/* Little Imagination Club 3.12 — Chippy's Story Choices + Instant Story Maker.
  * Built on top of the existing Picture Adventure tab. No changes to studio,
  * Bertie's bin confirmation, IndexedDB, classic picture indices or saved books.
  * Uses the actual Cute World artwork already embedded in this JavaScript file.
@@ -1844,7 +1844,8 @@
     'Bertie Bug has hidden a treasure map. Can the friends solve his puzzle?',
     'Dennis the Pup sets up a friendly castle obstacle course. Can Scrap and Bertie work together and earn their treats?',
     'The castle garden wakes up with singing flowers and dancing leaves.',
-    'The friends build a safe bridge so a little turtle can visit its family.'
+    'The friends build a safe bridge so a little turtle can visit its family.',
+    'Chilly the shy penguin has something wonderful to say. Can his friends help him find his voice?'
   ];
   const css=doc.createElement('style');css.textContent=`
     #lic-chippy-adventure{border-radius:20px;border:2px solid #d9c4f4;background:linear-gradient(145deg,#f9f0ff,#f1fffa);padding:14px;color:#39265c;margin:16px 0}
@@ -1872,9 +1873,34 @@
     #lic-chippy-adventure .chip-idea-list button{text-align:left;font-size:.93rem}
     #lic-chippy-adventure .chip-idea-list button[aria-pressed=true]{background:#eaf9ef;border-color:#45a36a}
     #lic-chippy-adventure .chip-action-row{display:flex;flex-wrap:wrap;gap:9px}
+    #lic-chippy-adventure .chip-input-row{display:grid;gap:9px;background:#fff;border:1px solid #d9c4f4;border-radius:15px;padding:12px;margin:12px 0}
+    #lic-chippy-adventure .chip-input-row label{font-weight:800;font-size:.96rem;display:grid;gap:5px}
+    #lic-chippy-adventure .chip-input-row textarea{width:100%;min-height:92px;border:2px solid #c9b7e4;border-radius:12px;padding:10px;font:inherit;color:#38275e;resize:vertical}
+    #lic-chippy-adventure .chip-input-row input[type=file]{max-width:100%;font:inherit;font-size:.87rem}
+    #lic-make-story-intro{border:2px solid #d9c4f4;border-radius:20px;padding:13px;background:linear-gradient(145deg,#f9efff,#eefff6);margin:12px 0;color:#44306d}
+    #lic-make-story-intro strong{display:block;margin-bottom:5px}
+    #lic-make-story-intro .lic-story-modes{display:flex;gap:8px;flex-wrap:wrap;margin:11px 0 5px}
+    #lic-make-story-intro button{border-radius:13px;border:2px solid #9d80d6;background:white;color:#4b307f;min-height:48px;padding:9px;font:inherit;font-weight:800;cursor:pointer}
+    #lic-make-story-intro .lic-story-auto{background:#7552bb;color:white}
+    #lic-make-story-intro p{font-size:.87rem;line-height:1.5;margin:6px 0}
+    #lic-make-story-intro .lic-story-result{font-weight:700}
+    #lic-chippy-adventure .chip-action-row button.chip-auto{background:#7854be;color:#fff;border-color:#7854be}
+
     #lic-chippy-adventure .chip-action-row button:first-child{background:#7355be;color:white;border-color:#7355be}
     #lic-chippy-adventure .chip-hint{font-size:.88rem;color:#645578}
     #lic-chippy-adventure .chip-message{font-weight:750;color:#553a84;min-height:1.4em}
+    /* Chippy's question stays inside the kingdom instead of using Chrome's website alert. */
+    #chip-question-overlay[hidden]{display:none!important}
+    #chip-question-overlay{position:fixed;inset:0;z-index:2147483644;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(37,26,60,.64);overscroll-behavior:contain}
+    #chip-question-card{width:min(100%,425px);border:3px solid #d9b8ed;border-radius:27px;background:#fffafb;box-shadow:0 16px 55px #26133955;padding:23px 16px;color:#452b69;text-align:center}
+    #chip-question-card .chip-question-face{font-size:46px;line-height:1.25;margin:0 0 8px}
+    #chip-question-card h3{font-size:clamp(20px,5vw,25px);color:#482875;margin:4px 0 12px;line-height:1.24}
+    #chip-question-card p{font-size:clamp(15px,4.3vw,18px);line-height:1.5;margin:0 0 22px}
+    #chip-question-card .chip-question-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    #chip-question-card button{font:inherit;min-height:60px;min-width:0;border:3px solid #b8a0d8;border-radius:19px;padding:8px 5px;line-height:1.27;font-size:clamp(13px,3.8vw,16px);font-weight:800;touch-action:manipulation;cursor:pointer;color:#492f74}
+    #chip-question-card button:focus-visible{outline:4px solid #6c48ab;outline-offset:2px}
+    #chip-question-no{background:#e7f9ee;border-color:#6db899}
+    #chip-question-yes{background:#f5e1ff;border-color:#b88bdc}
     #lic-classic-picture-prompts{margin:18px 0;padding:12px;border-radius:16px;border:2px solid #e7daf4;background:white}
     #lic-classic-picture-prompts summary{font-weight:750;color:#533c87;cursor:pointer;padding:7px}
     #lic-classic-picture-prompts .pic-grid{grid-template-columns:repeat(auto-fill,minmax(115px,1fr))}
@@ -1904,18 +1930,99 @@
     <div class="chip-selected"><h4>📖 My story moments <span id="chip-count">(0 of 8)</span></h4>
       <div id="chip-pages">Choose a friend or a place to begin.</div>
     </div>
-    <div class="chip-action-row"><button id="chip-write" type="button">✏️ Write my adventure</button><button id="chip-reset" type="button">↩️ Clear choices</button></div>
+    <div class="chip-input-row">
+      <label for="chip-story-idea">💭 Tell Chippy about your picture or story idea (optional)
+        <textarea id="chip-story-idea" maxlength="500" placeholder="For example: I drew a tiny penguin who wants to say hello to his new friends..."></textarea>
+      </label>
+      <label for="chip-story-art">🎨 Or add my own drawing (optional)
+        <input type="file" accept="image/png,image/jpeg,image/webp" id="chip-story-art">
+      </label>
+      <span id="chip-story-art-note" class="chip-hint">Your drawing stays on this device. Tell Chippy what it shows — this instant story maker cannot see the image itself.</span>
+    </div>
+    <div class="chip-action-row"><button id="chip-write" type="button">✏️ I'll write my story</button><button id="chip-auto" type="button" class="chip-auto">✨ Make a story for me</button><button id="chip-reset" type="button">↩️ Clear choices</button></div>
     <p class="chip-message" id="chip-status" role="status" aria-live="polite"></p>
-    <p class="chip-hint">💜 Your selected picture order is remembered on this device. When you write your adventure, the first picture becomes your story illustration, and all selected moments become editable writing prompts. Illustrated pages for every moment are a future feature.</p>
+    <p class="chip-hint">💜 Make a story for me uses a free, on-device story builder (not AI yet). You can edit the whole story, make a book, listen aloud, print or save. Your chosen first picture is used as a cover unless you uploaded your own drawing. This device remembers your story; keep a backup of special creations.</p>
   `;
   panel.append(archived);
   panel.insertBefore(box,archived);
+  // This is appended to body (not inside a scrolling tab) so it stays centred on phones.
+  const question=doc.createElement('div');question.id='chip-question-overlay';question.hidden=true;
+  question.setAttribute('role','dialog');question.setAttribute('aria-modal','true');
+  question.setAttribute('aria-labelledby','chip-question-title');
+  question.setAttribute('aria-describedby','chip-question-description');
+  question.innerHTML=`<div id="chip-question-card">
+    <div class="chip-question-face" aria-hidden="true">🐿️💜</div>
+    <h3 id="chip-question-title">Chippy has a question!</h3>
+    <p id="chip-question-description"></p>
+    <div class="chip-question-actions">
+      <button type="button" id="chip-question-no">💜 Keep my story</button>
+      <button type="button" id="chip-question-yes">✨ Add moments</button>
+    </div>
+  </div>`;
+  doc.body.append(question);
+  let questionResolve=null;let questionOldFocus=null;
+  const questionNo=question.querySelector('#chip-question-no');
+  const questionYes=question.querySelector('#chip-question-yes');
+  function finishQuestion(approved){
+    if(!questionResolve)return;
+    const done=questionResolve;questionResolve=null;question.hidden=true;
+    const old=questionOldFocus;questionOldFocus=null;
+    if(old?.isConnected)old.focus({preventScroll:true});
+    done(Boolean(approved));
+  }
+  questionNo.addEventListener('click',()=>finishQuestion(false));
+  questionYes.addEventListener('click',()=>finishQuestion(true));
+  question.addEventListener('click',event=>{if(event.target===question)finishQuestion(false);});
+  question.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){event.preventDefault();finishQuestion(false);}
+    if(event.key==='Tab'){
+      if(event.shiftKey&&doc.activeElement===questionNo){event.preventDefault();questionYes.focus();}
+      else if(!event.shiftKey&&doc.activeElement===questionYes){event.preventDefault();questionNo.focus();}
+    }
+  });
+  function askChippy(which){
+    if(questionResolve)return Promise.resolve(false);
+    questionOldFocus=doc.activeElement;
+    if(which==='append'){
+      question.querySelector('#chip-question-title').textContent='🐿️ Add to your story?';
+      question.querySelector('#chip-question-description').textContent='Your story already has writing. Would you like me to add these new moments at the end? Your words will stay safe.';
+      questionNo.textContent='💜 Keep my story';questionYes.textContent='✨ Add moments';
+    }else if(which==='make'){
+      question.querySelector('#chip-question-title').textContent='🐿️ Add a new story?';
+      question.querySelector('#chip-question-description').textContent='Your story already has writing. I can add the new adventure below your words without replacing them. Would you like that?';
+      questionNo.textContent='💜 Keep my story';questionYes.textContent='✨ Add new adventure';
+    }else{
+      question.querySelector('#chip-question-title').textContent='🐿️ Clear my choices?';
+      question.querySelector('#chip-question-description').textContent='This will clear the pictures and ideas you picked with Chippy. Your written story will stay safe.';
+      questionNo.textContent='💜 Keep choices';questionYes.textContent='↩️ Clear choices';
+    }
+    question.hidden=false;
+    const answer=new Promise(resolve=>{questionResolve=resolve;});
+    questionNo.focus({preventScroll:true});
+    return answer;
+  }
+  // A clearly labelled second creation path, available also to children who upload a drawing.
+  const creatorTabs=doc.querySelector('#create .creator-tabs');
+  const intro=doc.createElement('div');intro.id='lic-make-story-intro';
+  intro.innerHTML=`<strong>📖 Who will tell your story?</strong><div class="lic-story-modes"><button type="button" id="lic-story-own">✏️ I'll write it</button><button type="button" id="lic-story-auto" class="lic-story-auto">✨ Make a story for me</button></div><p>Choose a picture or describe an idea. The instant story maker writes a complete, editable story without sending it online. AI storytelling will be added when a secure service is connected.</p><p id="lic-story-result" class="lic-story-result" role="status" aria-live="polite"></p>`;
+  if(creatorTabs)creatorTabs.after(intro);
   const $=id=>doc.getElementById(id);
   const KEY='lic_chippy_adventure_choices_v1';
-  let chosen=[];let idea=null;let category='friends';
-  try {const data=JSON.parse(localStorage.getItem(KEY)||'null');if(data&&Array.isArray(data.choices))chosen=data.choices.filter(id=>byId[id]).slice(0,8);if(data&&typeof data.idea==='string'&&ideas.includes(data.idea))idea=data.idea;}catch(e){}
-  function remember(){try{localStorage.setItem(KEY,JSON.stringify({choices:chosen,idea}));}catch(e){status('💜 Your choices are ready now. Device storage is full, so write the story to save them.');}}
-  function status(s){$('chip-status').textContent=s||'';}
+  let chosen=[];let idea=null;let category='friends';let childIdea='';
+  try {const data=JSON.parse(localStorage.getItem(KEY)||'null');if(data&&Array.isArray(data.choices))chosen=data.choices.filter(id=>byId[id]).slice(0,8);if(data&&typeof data.idea==='string'&&ideas.includes(data.idea))idea=data.idea;if(data&&typeof data.childIdea==='string')childIdea=data.childIdea.slice(0,500);}catch(e){}
+  function remember(){try{localStorage.setItem(KEY,JSON.stringify({choices:chosen,idea,childIdea}));}catch(e){status('💜 Your choices are ready now. Device storage is full, so write the story to save them.');}}
+  $('chip-story-idea').value=childIdea;
+  $('chip-story-idea').addEventListener('input',()=>{childIdea=$('chip-story-idea').value.slice(0,500);remember();});
+  // Copy a selected drawing into the existing story editor, keeping its autosave flow.
+  $('chip-story-art').addEventListener('change',()=>{
+    const f=$('chip-story-art').files?.[0];if(!f)return;
+    const note=$('chip-story-art-note');
+    if(!['image/png','image/jpeg','image/webp'].includes(f.type)||f.size>5*1024*1024){note.textContent='Choose a PNG, JPG or WebP drawing under 5 MB.';$('chip-story-art').value='';return;}
+    try{const dt=new DataTransfer();dt.items.add(f);$('club-upload').files=dt.files;$('club-upload').dispatchEvent(new Event('change',{bubbles:true}));
+      note.textContent='✅ '+f.name+' is ready for your story. Describe it above so Chippy knows what you drew.';status('Your own drawing is ready!');
+    }catch(e){note.textContent='Could not attach that picture. Try uploading it in Create My Story instead.';}
+  });
+  function status(s){$('chip-status').textContent=s||'';if($('lic-story-result'))$('lic-story-result').textContent=s||'';}
   function renderPages(){const list=$('chip-pages');list.replaceChildren();$('chip-count').textContent='('+chosen.length+' of 8)';
     if(!chosen.length){list.textContent='Choose a friend or a place to begin.';return;}
     chosen.forEach((id,i)=>{const item=byId[id];if(!item)return;const row=doc.createElement('div');row.className='chip-page';
@@ -1947,15 +2054,15 @@
     });
   }
   box.querySelectorAll('[data-chip-category]').forEach(b=>b.addEventListener('click',()=>{category=b.dataset.chipCategory;status('');renderCategory();}));
-  $('chip-reset').addEventListener('click',()=>{if((chosen.length||idea)&&!confirm('Clear Chippy’s story choices? Your story writing will stay safe.'))return;chosen=[];idea=null;remember();renderPages();renderCategory();status('Your story choices are clear. Ready for a new adventure!');});
+  $('chip-reset').addEventListener('click',async()=>{if((chosen.length||idea||childIdea)&&!await askChippy('clear'))return;chosen=[];idea=null;childIdea='';$('chip-story-idea').value='';remember();renderPages();renderCategory();status('Your story choices are clear. Ready for a new adventure!');});
   // New Story on the site creates a separate draft. Reset the picker too so
   // a child's previous story choices aren't accidentally attached to the next one.
-  $('lic-story-new')?.addEventListener('click',()=>{chosen=[];idea=null;remember();renderPages();renderCategory();status('New adventure, new choices!');});
+  $('lic-story-new')?.addEventListener('click',()=>{chosen=[];idea=null;childIdea='';$('chip-story-idea').value='';$('chip-story-art').value='';remember();renderPages();renderCategory();status('New adventure, new choices!');});
   $('chip-write').addEventListener('click',async()=>{
-    if(!chosen.length){status('🐿️ Chippy says: choose at least one friend or place first!');return;}
+    if(!chosen.length&&!idea&&!childIdea.trim()&&!$('club-description')?.value.trim()){status('🐿️ Choose a picture or tell me a story idea first!');return;}
     const writing=$('club-writing');if(!writing){status('Could not find the story editor.');return;}
-    if(writing.value.trim()&&!confirm('Add Chippy’s new story moments to the end of your existing writing?'))return;
-    const notes=[];if(idea)notes.push('✨ My story idea: '+idea);
+    if(writing.value.trim()&&!await askChippy('append')){status('💜 Your existing writing is safe. No new moments were added.');return;}
+    const notes=[];if(idea)notes.push('✨ My story idea: '+idea);if(childIdea.trim())notes.push('💭 My own idea: '+childIdea.trim());else if($('club-description')?.value.trim())notes.push('🎨 About my picture: '+$('club-description').value.trim());
     chosen.forEach((id,i)=>{const item=byId[id];if(item)notes.push('Page '+(i+1)+' — '+item.short+'\n'+item.note+'\nWhat happens next?');});
     writing.value+=(writing.value.trim()?'\n\n':'')+notes.join('\n\n');
     writing.dispatchEvent(new Event('input',{bubbles:true}));
@@ -1965,7 +2072,7 @@
     const id=chosen[0],item=byId[id];let illustrated=false;
     const input=$('club-upload');
     try{
-      if(input&&item&&typeof File==='function'&&typeof DataTransfer==='function'){
+      if(input&&item&&!input.files?.length&&typeof File==='function'&&typeof DataTransfer==='function'){
         const response=await fetch(assets[id]);if(!response.ok)throw Error('Image unavailable');
         const blob=await response.blob();const file=new File([blob],id+'-chippy-picture.webp',{type:'image/webp'});
         const files=new DataTransfer();files.items.add(file);input.files=files.files;
@@ -1975,6 +2082,89 @@
     doc.querySelector('#create .creator-tabs [data-mode="write"]')?.click();
     writing.scrollIntoView({behavior:'smooth',block:'center'});
     status(illustrated?'🎉 Story moments added, and your first picture is attached!':'🎉 Story moments added! Add a story picture separately if you would like one.');
+  });
+  // Fully local story writing is an interim feature: no AI credentials or child artwork
+  // are sent to a server. It uses editable narratives built from the child's choices.
+  const tidy=value=>String(value??'').replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').trim();
+  const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
+  function storyMaterial(){
+    const items=chosen.map(id=>byId[id]).filter(Boolean);
+    const desc=tidy(childIdea||$('club-description')?.value).slice(0,500);
+    const prompt=tidy(idea).slice(0,450);
+    const hero=items.find(x=>x.category==='friends')?.short||
+      (doc.querySelector('#create .creator-tabs [data-mode="guided"][aria-pressed="true"]') ? tidy($('club-hero')?.value) : '')||'a curious little explorer';
+    const place=items.find(x=>x.category==='worlds')?.short||
+      (doc.querySelector('#create .creator-tabs [data-mode="guided"][aria-pressed="true"]') ? tidy($('club-place')?.value) : '')||"King Kyle's Happy Kingdom";
+    return {items,desc,prompt,hero,place,hasPicture:Boolean($('club-upload')?.files?.length)};
+  }
+  function buildInstantStory(data){
+    const {items,desc,prompt,hero,place}=data;
+    const object=pick(['a tiny golden bell','a glowing blue feather','a little silver compass','a ribbon full of stars']);
+    const feeling=pick(['brave','curious','hopeful','kind']);
+    const secret=pick(['a song that could wake the sleepy flowers','a path of sparkling stepping-stones','a letter from a friend who needed help','a trail of floating lanterns']);
+    const sentences=[];
+    sentences.push(`Once upon a time, in ${place}, ${hero} woke up with a wonderfully strange feeling. Something exciting was about to happen. The air smelled like fresh flowers, and the clouds looked as soft as marshmallows.`);
+    if(desc)sentences.push(`It all began with a very special idea: “${desc}” ${hero} thought about it carefully. “What if we could turn that idea into a real adventure?” whispered a little voice. There was only one way to find out.`);
+    if(prompt)sentences.push(`Then an exciting mystery appeared: ${prompt} Nobody knew the whole answer yet. But every great adventure starts by being willing to wonder.`);
+    else sentences.push(`Just beside the winding path, ${hero} discovered ${object}. Attached to it was a note that said, “A friend needs your help. Follow your heart, and don't forget to look closely!”`);
+    const unique=items.slice(0,8);
+    unique.forEach((item,i)=>{
+      if(item.category==='friends')sentences.push(`${i===0?'Before long':'A little further along'}, ${item.short} joined the adventure. ${item.note} Together, the friends shared an idea, laughed at a funny surprise, and took another little step towards solving the mystery.`);
+      else sentences.push(`Their next stop was ${item.short}. ${item.note} The place was full of tiny clues. The friends stopped to look, listen and imagine what might happen next.`);
+    });
+    sentences.push(`Soon they reached a place where the path split in two. One way was bright and easy; the other seemed unfamiliar. ${hero} felt a flutter of nerves, but remembered that being ${feeling} didn't mean never feeling scared. It meant trying with a kind friend beside you.`);
+    sentences.push(`Chippy the helpful squirrel noticed ${secret}. “I've got an idea!” he squeaked. Everyone listened, even Bertie Bug, who had been hiding nearby and trying very hard not to smile. This time, Bertie decided to help. The friends worked together, and a little bit of kindness made all the difference.`);
+    sentences.push(`At last the mystery was solved! They discovered that the happiest magic wasn't hidden inside a treasure chest at all. It was the courage to try, the patience to listen, and the joy of helping someone else. King Kyle welcomed everyone home with a big smile and a celebration under the stars.`);
+    sentences.push(`That night, ${hero} looked back on the adventure and whispered, “I'm glad we tried.” And the whole Happy Kingdom agreed: tomorrow would be full of new stories waiting to begin.\n\nThe End. 💜`);
+    return sentences.join('\n\n');
+  }
+  async function attachSelectedCover(){
+    const input=$('club-upload');
+    if(!input||input.files?.length||!chosen.length)return false;
+    try{
+      const id=chosen[0];const response=await fetch(assets[id]);if(!response.ok)throw Error('Cover unavailable');
+      const blob=await response.blob();const dt=new DataTransfer();dt.items.add(new File([blob],id+'-chippy-cover.webp',{type:'image/webp'}));
+      input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));return true;
+    }catch(e){console.warn('Instant story picture',e);return false;}
+  }
+  let making=false;
+  async function makeStoryForMe(){
+    if(making)return;making=true;
+    try{
+      const data=storyMaterial();
+      if(!data.items.length&&!data.desc&&!data.prompt){
+        status(data.hasPicture?'🐿️ Tell me a little about your drawing first, so I can make the story about it. I cannot see inside your picture yet.':'🐿️ First choose a friend, a story idea, or tell me about your drawing!');
+        $('chip-story-idea').focus();return;
+      }
+      const writing=$('club-writing');if(!writing){status('Please open Create My Story first.');return;}
+      if(writing.value.trim()&&!await askChippy('make')){status('💜 Your story stays just as you wrote it.');return;}
+      const title=$('club-title');if(title&&!title.value.trim()){title.value='A Little Adventure in '+data.place;title.dispatchEvent(new Event('input',{bubbles:true}));}
+      const story=buildInstantStory(data);
+      writing.value+=(writing.value.trim()?'\n\n—— A new adventure ——\n\n':'')+story;
+      writing.dispatchEvent(new Event('input',{bubbles:true}));
+      await attachSelectedCover();
+      doc.querySelector('#create .creator-tabs [data-mode="write"]')?.click();
+      $('club-make')?.click();
+      status('📖 Your instant story is ready! Read it, change the words, listen aloud or save your book.');
+      (doc.getElementById('club-preview')?.hidden?writing:doc.getElementById('club-preview'))?.scrollIntoView({behavior:'smooth',block:'start'});
+    }finally{making=false;}
+  }
+  $('chip-auto').addEventListener('click',makeStoryForMe);
+  $('lic-story-auto')?.addEventListener('click',makeStoryForMe);
+  $('lic-story-own')?.addEventListener('click',()=>{
+    doc.querySelector('#create .creator-tabs [data-mode="write"]')?.click();
+    $('club-writing')?.scrollIntoView({behavior:'smooth',block:'center'});
+    $('club-writing')?.focus();
+  });
+  // The original book-preview code only displayed covers in Drawing mode.
+  // Show a child's uploaded picture alongside the edited, generated story too.
+  let previewCoverURL='';
+  $('club-make')?.addEventListener('click',()=>{
+    const upload=$('club-upload'),preview=$('club-preview'),art=$('club-book-art');
+    if(!upload?.files?.length||!preview||preview.hidden||!art)return;
+    const f=upload.files[0];if(!['image/png','image/jpeg','image/webp'].includes(f.type))return;
+    if(previewCoverURL)URL.revokeObjectURL(previewCoverURL);
+    previewCoverURL=URL.createObjectURL(f);art.src=previewCoverURL;art.hidden=false;
   });
   renderPages();renderCategory();
 })();
