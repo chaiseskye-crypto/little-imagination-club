@@ -72,7 +72,8 @@ window.addEventListener('pageshow',()=>{
 <script src="magical_drawing_studio.js"></script>
 <script src="mix_my_drawings.js"></script>
 <script src="one_magical_studio.js"></script>
-<script src="kids_creation_hub.js?v=fix1"></script>
+<script>window.addEventListener('error',e=>{if(e.message&&!window.bugShown){window.bugShown=true;alert('🐛 '+e.message+' — line '+e.lineno+' in '+(e.filename||'script').split('/').pop());}},true);</script>
+<script src="kids_creation_hub.js?v=fix2"></script>
 </body>
 </html>
 
