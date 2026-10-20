@@ -32,14 +32,21 @@ let model, mixer;
 const clock = new THREE.Clock();
 const loader = new GLTFLoader();
 loader.load('./king_kyle.glb', gltf => {
-  model = gltf.scene;
+  // The blockout was authored Z-up with its face toward -Y.
+  // Rotate its local geometry into Three.js Y-up; its face then points +Z toward the camera.
+  const original = gltf.scene;
+  original.rotation.x = -Math.PI / 2;
+  original.updateMatrixWorld(true);
+  // A separate pivot lets the rotation slider turn Kyle around his upright Y axis.
+  model = new THREE.Group();
+  model.add(original);
   scene.add(model);
-  const bounds = new THREE.Box3().setFromObject(model);
+  const bounds = new THREE.Box3().setFromObject(original);
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
-  // Recenter for a predictable mobile viewport without altering the geometry.
-  model.position.sub(center);
-  // Keep a little extra margin for a full 360-degree turn, including on narrow phones.
+  // Move the rotated asset's centre to the pivot, without changing its scale.
+  original.position.sub(center);
+  original.updateMatrixWorld(true);
   model.userData.auditRadius = Math.max(size.length() / 2, 0.05);
   resize();
   const bones = [], skinnedMeshes = [];
@@ -48,12 +55,12 @@ loader.load('./king_kyle.glb', gltf => {
     if (object.isSkinnedMesh) skinnedMeshes.push(object.name || '(unnamed skinned mesh)');
   });
   const clips = gltf.animations.map(clip => clip.name || '(unnamed clip)');
-  status.textContent = `✅ 3D geometry loaded • ${bones.length} bones • ${clips.length} animation clips`;
+  status.textContent = `✅ Kyle upright (Z-up corrected) • 3D geometry loaded • ${bones.length} bones • ${clips.length} animation clips`;
   details.textContent = `Bones: ${bones.length ? bones.join(', ') : 'None detected'}\nSkinned meshes: ${skinnedMeshes.length ? skinnedMeshes.join(', ') : 'None detected'}\nAnimations: ${clips.length ? clips.join(', ') : 'None detected'}`;
   // This inspection viewer deliberately does not fake a waving animation.
   if (gltf.animations.length) {
     const idle = gltf.animations.find(clip => clip.name === 'idle_breathing');
-    if (idle) { mixer = new THREE.AnimationMixer(model); mixer.clipAction(idle).play(); }
+    if (idle) { mixer = new THREE.AnimationMixer(original); mixer.clipAction(idle).play(); }
   }
 }, undefined, error => {
   status.textContent = '❌ Model failed to load. Open this test from GitHub Pages, not a local file.';
