@@ -1,0 +1,176 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>King Kyle Walking Test</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: linear-gradient(#24164d, #6443a2);
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+h2 { margin: 16px 0 5px; }
+p { font-size: 14px; }
+#stage {
+  height: 68vh;
+  width: 100%;
+  touch-action: none;
+}
+button {
+  padding: 12px 22px;
+  margin: 5px;
+  border: 0;
+  border-radius: 22px;
+  background: #d8ff75;
+  font-weight: bold;
+}
+#status { padding: 10px; }
+</style>
+</head>
+<body>
+<h2>👑 King Kyle's Walking Test 🦊</h2>
+<p>Our King's first steps!</p>
+<div id="stage"></div>
+<div>
+<button id="play">▶ Walk</button>
+<button id="pause">⏸ Pause</button>
+</div>
+<div id="status">Preparing the Kingdom...</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const stage = document.getElementById('stage');
+const status = document.getElementById('status');
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(
+  45, stage.clientWidth / stage.clientHeight,
+  0.1, 10000
+);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(stage.clientWidth, stage.clientHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+stage.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x7777aa, 3));
+
+const light = new THREE.DirectionalLight(0xffffff, 3);
+light.position.set(5, 10, 8);
+scene.add(light);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+const mixerClock = new THREE.Clock();
+let mixer = null;
+let action = null;
+
+const loader = new FBXLoader();
+
+loader.load(
+  './kyle_walking.fbx',
+  async (model) => {
+    scene.add(model);
+
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+
+    const height = Math.max(size.y, 1);
+    camera.position.set(
+      center.x,
+      center.y + height * 0.25,
+      center.z + height * 2.3
+    );
+    camera.lookAt(center);
+    controls.target.copy(center);
+    controls.update();
+
+    if (model.animations.length) {
+      mixer = new THREE.AnimationMixer(model);
+      action = mixer.clipAction(model.animations[0]);
+      action.play();
+      status.textContent = '👑 King Kyle is walking!';
+    } else {
+      status.textContent =
+        'Kyle loaded, but no animation was found.';
+    }
+
+    // Load Kyle's colour texture
+    const textureFile =
+      'Meshy_AI_Prince_Fox_biped_texture_0.png';
+
+    try {
+      const texture = await new THREE.TextureLoader()
+        .loadAsync('./' + textureFile);
+
+      texture.colorSpace = THREE.SRGBColorSpace;
+      model.traverse(child => {
+        if (child.isMesh) {
+          const materials = Array.isArray(child.material)
+            ? child.material : [child.material];
+          materials.forEach(mat => {
+            if (mat) {
+              mat.map = texture;
+              mat.needsUpdate = true;
+            }
+          });
+        }
+      });
+    } catch (error) {
+      status.textContent +=
+        ' Colour texture needs checking.';
+    }
+  },
+  undefined,
+  error => {
+    status.textContent =
+      'Could not load Kyle. Check FBX filename.';
+    console.error(error);
+  }
+);
+
+document.getElementById('play').onclick = () => {
+  if (action) action.paused = false;
+};
+
+document.getElementById('pause').onclick = () => {
+  if (action) action.paused = true;
+};
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = mixerClock.getDelta();
+  if (mixer) mixer.update(delta);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = stage.clientWidth / stage.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(stage.clientWidth, stage.clientHeight);
+});
+</script>
+</body>
+</html>
