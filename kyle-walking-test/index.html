@@ -174,7 +174,7 @@ function animate() {
   requestAnimationFrame(animate);
   const delta = mixerClock.getDelta();
  // if (mixer) mixer.update(delta);
- if (kyle && walkingAcross && action && !action.paused) {
+ if (kyle && walkingAcross) {
   kyle.position.x += walkSpeed * walkDirection * delta;
 
   if (Math.abs(kyle.position.x - startX) >= walkDistance) {
