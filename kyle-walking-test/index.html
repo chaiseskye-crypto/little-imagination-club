@@ -94,8 +94,12 @@ const loader = new FBXLoader();
 loader.load(
   './kyle_walking.fbx',
   async (model) => {
-    scene.add(model);
-kyle = model;
+ 
+const walkingGroup = new THREE.Group();
+
+walkingGroup.add(model);
+scene.add(walkingGroup);
+kyle = walkingGroup;
 startX = kyle.position.x;
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
