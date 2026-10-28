@@ -77,10 +77,17 @@ const light = new THREE.DirectionalLight(0xffffff, 3);
 light.position.set(5, 10, 8);
 scene.add(light);
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
 
-const mixerClock = new THREE.Clock();
+if (kyle.position.x >= startX + walkDistance) {
+  kyle.position.x = startX + walkDistance;
+  walkDirection = -1;
+  kyle.rotation.y = Math.PI;
+} else if (kyle.position.x <= startX - walkDistance) {
+  kyle.position.x = startX - walkDistance;
+  walkDirection = 1;
+  kyle.rotation.y = 0;
+}
+  
 let mixer = null;
 let action = null;
 let kyle = null;
