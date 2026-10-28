@@ -77,17 +77,11 @@ const light = new THREE.DirectionalLight(0xffffff, 3);
 light.position.set(5, 10, 8);
 scene.add(light);
 
-
-if (kyle.position.x >= startX + walkDistance) {
-  kyle.position.x = startX + walkDistance;
-  walkDirection = -1;
-  kyle.rotation.y = Math.PI;
-} else if (kyle.position.x <= startX - walkDistance) {
-  kyle.position.x = startX - walkDistance;
-  walkDirection = 1;
-  kyle.rotation.y = 0;
-}
-  
+ 
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+const mixerClock = new THREE.Clock();
+ 
 let mixer = null;
 let action = null;
 let kyle = null;
@@ -184,10 +178,17 @@ function animate() {
  if (kyle && walkingAcross) {
   kyle.position.x += walkSpeed * walkDirection * delta;
 
-  if (Math.abs(kyle.position.x - startX) >= walkDistance) {
-    walkDirection *= -1;
-    kyle.rotation.y += Math.PI;
-  }
+  
+if (kyle.position.x >= startX + walkDistance) {
+  kyle.position.x = startX + walkDistance;
+  walkDirection = -1;
+  kyle.rotation.y = Math.PI;
+} else if (kyle.position.x <= startX - walkDistance) {
+  kyle.position.x = startX - walkDistance;
+  walkDirection = 1;
+  kyle.rotation.y = 0;
+}
+
       }
 controls.update();
   renderer.render(scene, camera);
