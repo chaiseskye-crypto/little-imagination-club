@@ -104,7 +104,8 @@ startX = kyle.position.x;
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-
+walkDistance = size.y * 1.5;
+walkSpeed = size.y * 0.4;
     const height = Math.max(size.y, 1);
     camera.position.set(
       center.x,
