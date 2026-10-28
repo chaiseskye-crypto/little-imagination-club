@@ -118,10 +118,18 @@ walkSpeed = size.y * 0.4;
     controls.update();
 
     if (model.animations.length) {
+      
+
+status.textContent = 'Animations: ' +
+  model.animations.map(clip =>
+    clip.name + ' (' + clip.tracks.length + ' tracks)'
+  ).join(', ');
+
+      
+
       mixer = new THREE.AnimationMixer(model);
       action = mixer.clipAction(model.animations[0]);
       action.play();
-      status.textContent = '👑 King Kyle is walking!';
     } else {
       status.textContent =
         'Kyle loaded, but no animation was found.';
