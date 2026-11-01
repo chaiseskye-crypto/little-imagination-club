@@ -129,7 +129,7 @@ status.textContent = 'Animations: ' +
 
       mixer = new THREE.AnimationMixer(model);
       action = mixer.clipAction(model.animations[0]);
-      action.play();
+      action.play();action.paused = true;
     } else {
       status.textContent =
         'Kyle loaded, but no animation was found.';
