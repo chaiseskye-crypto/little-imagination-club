@@ -1,0 +1,98 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>King Kyle - Mouth Inspection</title>
+<style>
+body{background:#24164d;color:white;font-family:Arial,sans-serif;padding:16px}
+h2{text-align:center}
+section{background:#392866;border-radius:14px;padding:14px;margin:12px 0}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}
+.good{color:#d8ff75}
+</style>
+</head>
+<body>
+<h2>👑 King Kyle's Royal Inspection 🦊</h2>
+<p id="status">Loading Kyle's model...</p>
+<section>
+<h3>🔍 Inspection summary</h3>
+<pre id="summary">Waiting...</pre>
+</section>
+<section>
+<h3>🦴 All bones</h3>
+<pre id="bones">Waiting...</pre>
+</section>
+<section>
+<h3>👄 Mouth / morph controls</h3>
+<pre id="mouth">Waiting...</pre>
+</section>
+
+<script type="importmap">
+{
+"imports":{
+"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+"three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+}
+}
+</script>
+<script type="module">
+import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
+
+const status=document.getElementById('status');
+const summary=document.getElementById('summary');
+const bonesBox=document.getElementById('bones');
+const mouthBox=document.getElementById('mouth');
+
+new FBXLoader().load(
+'../kyle-walking-test/kyle_walking_v2.fbx',
+model=>{
+const bones=[];
+const meshes=[];
+const morphs=[];
+const matches=[];
+const pattern=/jaw|mouth|lip|chin|tongue|teeth|face|viseme|phoneme/i;
+
+model.traverse(obj=>{
+if(obj.isBone){
+bones.push(obj.name||'(unnamed bone)');
+if(pattern.test(obj.name))matches.push('Bone: '+obj.name);
+}
+if(obj.isMesh){
+meshes.push(obj.name||'(unnamed mesh)');
+const names=Object.keys(obj.morphTargetDictionary||{});
+const attrs=Object.keys(obj.geometry?.morphAttributes||{});
+if(names.length||attrs.length){
+morphs.push('Mesh: '+obj.name);
+morphs.push('Targets: '+(names.join(', ')||'(unnamed)'));
+morphs.push('Attributes: '+attrs.join(', '));
+names.filter(n=>pattern.test(n)).forEach(n=>matches.push('Morph: '+n));
+}
+}
+});
+
+status.textContent='✅ Inspection complete!';
+summary.textContent=
+'Bones: '+bones.length+
+'\nMeshes: '+meshes.length+
+'\nMorph target groups: '+morphs.length+
+'\n\nMesh names:\n'+(meshes.join('\n')||'None');
+
+bonesBox.textContent=bones.join('\n')||'No bones found';
+mouthBox.textContent=
+'POSSIBLE FACIAL CONTROLS:\n'+
+(matches.join('\n')||'No facial control names detected')+
+'\n\nALL MORPH DATA:\n'+
+(morphs.join('\n')||'No morph targets detected');
+},
+undefined,
+error=>{
+status.textContent='❌ Model failed to load';
+summary.textContent=String(error);
+console.error(error);
+}
+);
+</script>
+</body>
+</html>
