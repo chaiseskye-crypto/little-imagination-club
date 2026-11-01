@@ -188,13 +188,19 @@ function speak(words) {
 
   window.speechSynthesis.speak(voice);
 }
-
+const kyleRoyalVoice = new Audio(
+  'ElevenLabs_2026-11-01T21_50_36_King Kyle - Royal Voice V1_gen_sp100_s50_sb75_v4.mp3'
+);
 document.getElementById('hello').onclick = () => {
-  speak(
+    kyleRoyalVoice.currentTime = 0;
+  kyleRoyalVoice.play();
+  speech.textContent = "King Kyle is speaking!";
+  /*
     "G'day, little legend! Welcome to my Kingdom! " +
     "I'm King Kyle, and I've got a royal adventure " +
     "waiting just for you!"
   );
+  */
 };
 
 document.getElementById('joke').onclick = () => {
