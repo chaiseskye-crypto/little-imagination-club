@@ -191,6 +191,9 @@ function speak(words) {
 const kyleRoyalVoice = new Audio(
   'ElevenLabs_2026-11-01T21_50_36_King Kyle - Royal Voice V1_gen_sp100_s50_sb75_v4.mp3'
 );
+  const kylePeppyVoice = new Audio(
+  'ElevenLabs_2026-11-01T22_42_32_King Kyle - Royal Voice V1_gen_sp100_s50_sb75_v4.mp3'
+);
 document.getElementById('hello').onclick = () => {
     kyleRoyalVoice.currentTime = 0;
   kyleRoyalVoice.play();
@@ -203,13 +206,12 @@ document.getElementById('hello').onclick = () => {
   */
 };
 
-document.getElementById('joke').onclick = () => {
-  speak(
-    "Why did the royal fox bring a ladder? " +
-    "Because he wanted to reach the top of his Kingdom!"
-  );
+  kyleRoyalVoice.pause();
+  window.speechSynthesis.cancel();
+  kylePeppyVoice.currentTime = 0;
+  kylePeppyVoice.play();
+  speech.textContent = "King Kyle has something cheeky to say!";
 };
-
 function animate() {
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
