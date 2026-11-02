@@ -122,7 +122,7 @@ new FBXLoader().load(
     controls.update();
 
     model.traverse(child => {
-      if (child.isBone && child.name === 'Bone_045') {
+      if (child.isBone && child.name === 'Bone_046') {
         mouthBone = child;
         mouthRest = child.rotation.x;
       }
@@ -226,7 +226,7 @@ function animate() {
       mouthOpen = Math.min(volume * 5, 1);
     }
 
-    const target = mouthRest - mouthOpen * 0.17;
+    const target = mouthRest - mouthOpen * 0.04;
     mouthBone.rotation.x +=
       (target - mouthBone.rotation.x) * 0.35;
   }
