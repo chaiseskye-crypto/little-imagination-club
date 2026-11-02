@@ -223,7 +223,7 @@ function animate() {
       }
 
       const volume = total / audioData.length / 255;
-      mouthOpen = Math.min(volume * 5, 1);
+      mouthOpen = Math.min(volume * 8, 1);
     }
 
     const target = mouthRest - mouthOpen * 0.10;
