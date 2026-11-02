@@ -226,7 +226,7 @@ function animate() {
       mouthOpen = Math.min(volume * 5, 1);
     }
 
-    const target = mouthRest - mouthOpen * 0.04;
+    const target = mouthRest - mouthOpen * 0.07;
     mouthBone.rotation.x +=
       (target - mouthBone.rotation.x) * 0.35;
   }
