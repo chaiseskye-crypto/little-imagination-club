@@ -227,13 +227,13 @@ function animate() {
     }
 
     const closedAngle = THREE.MathUtils.degToRad(0);
-const openAngle = THREE.MathUtils.degToRad(15);
+const openAngle = THREE.MathUtils.degToRad(8);
 
 const target = mouthRest +
   closedAngle + mouthOpen * (openAngle - closedAngle);
 
 mouthBone.rotation.x +=
-  (target - mouthBone.rotation.x) * 0.18;
+  (target - mouthBone.rotation.x) * 0.30;
 
 
   }
