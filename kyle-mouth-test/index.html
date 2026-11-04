@@ -215,15 +215,16 @@ function animate() {
       !currentAudio.ended &&
       analyser
     ) {
-      analyser.getByteFrequencyData(audioData);
+    analyser.getByteTimeDomainData(audioData);
 
-      let total = 0;
-      for (let i = 0; i < audioData.length; i++) {
-        total += audioData[i];
-      }
+     let total = 0;
+for (let i = 0; i < audioData.length; i++) {
+  const sample = (audioData[i] - 128) / 128;
+  total += sample * sample;
+}
 
-      const volume = total / audioData.length / 255;
-      mouthOpen = Math.min(volume * 4, 1);
+const volume = Math.sqrt(total / audioData.length);
+mouthOpen = Math.min(Math.max((volume - 0.015) * 12, 0), 1); 
     }
 
     const closedAngle = THREE.MathUtils.degToRad(0);
