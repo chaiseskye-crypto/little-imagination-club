@@ -223,7 +223,7 @@ function animate() {
       }
 
       const volume = total / audioData.length / 255;
-      mouthOpen = Math.min(volume * 8, 1);
+      mouthOpen = Math.min(volume * 4, 1);
     }
 
     const closedAngle = THREE.MathUtils.degToRad(0);
@@ -233,7 +233,7 @@ const target = mouthRest +
   closedAngle + mouthOpen * (openAngle - closedAngle);
 
 mouthBone.rotation.x +=
-  (target - mouthBone.rotation.x) * 0.35;
+  (target - mouthBone.rotation.x) * 0.18;
 
 
   }
