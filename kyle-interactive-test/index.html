@@ -1,0 +1,439 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>King Kyle Interactive Test</title>
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: linear-gradient(#24164d, #6443a2);
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+h2 { margin: 15px 8px 5px; }
+
+p { margin: 8px; }
+
+#stage {
+  width: 100%;
+  height: 48vh;
+  min-height: 280px;
+  touch-action: none;
+  background: #08040f;
+}
+
+#speech {
+  margin: 12px;
+  padding: 16px;
+  background: white;
+  color: #24164d;
+  border-radius: 20px;
+  font-size: 17px;
+  min-height: 65px;
+}
+
+#choices {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 8px;
+}
+
+button {
+  border: 0;
+  border-radius: 20px;
+  background: #d8ff75;
+  color: #24164d;
+  font-weight: bold;
+  font-size: 17px;
+  padding: 15px;
+  min-height: 60px;
+  cursor: pointer;
+}
+
+.choice {
+  flex: 1 1 95px;
+  max-width: 180px;
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+button:focus-visible {
+  outline: 3px solid white;
+}
+
+#status {
+  font-size: 13px;
+  padding: 10px;
+}
+
+#readout {
+  font-size: 12px;
+  padding: 8px;
+  opacity: 0.85;
+}
+
+#again {
+  margin: 8px;
+}
+</style>
+</head>
+<body>
+
+<h2>👑 King Kyle's Interactive Kingdom 🦊</h2>
+<p>What shall we explore today?</p>
+
+<div id="stage"></div>
+
+<div id="speech" aria-live="polite">
+  Hello, little creator! Choose an adventure!
+</div>
+
+<div id="choices">
+  <button class="choice" data-choice="dragon">
+    🐉 Dragon
+  </button>
+  <button class="choice" data-choice="castle">
+    🏰 Castle
+  </button>
+  <button class="choice" data-choice="rainbow">
+    🌈 Rainbow
+  </button>
+</div>
+
+<button id="again">🦊 Hear Kyle Again!</button>
+
+<div id="status">Preparing King Kyle...</div>
+<div id="readout">Waiting for our King...</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const stage = document.getElementById('stage');
+const status = document.getElementById('status');
+const speech = document.getElementById('speech');
+const readout = document.getElementById('readout');
+
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+  45,
+  stage.clientWidth / stage.clientHeight,
+  0.1,
+  10000
+);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true
+});
+
+renderer.setSize(
+  stage.clientWidth,
+  stage.clientHeight
+);
+
+renderer.setPixelRatio(
+  Math.min(window.devicePixelRatio || 1, 2)
+);
+
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+stage.appendChild(renderer.domElement);
+
+scene.add(
+  new THREE.HemisphereLight(
+    0xffffff,
+    0x7777aa,
+    3
+  )
+);
+
+const light = new THREE.DirectionalLight(
+  0xffffff,
+  3
+);
+
+light.position.set(5, 10, 8);
+scene.add(light);
+
+const controls = new OrbitControls(
+  camera,
+  renderer.domElement
+);
+
+controls.enableDamping = true;
+
+let bone045 = null;
+let bone046 = null;
+let rest045 = 0;
+let rest046 = 0;
+
+let currentAudio = null;
+let audioContext = null;
+let analyser = null;
+let audioData = null;
+let source = null;
+let modelReady = false;
+
+const helloAudio = new Audio(
+  '../King_Kyle_Official_Voice.wav'
+);
+
+helloAudio.preload = 'auto';
+
+const responses = {
+  dragon: {
+    text: "🐉 A dragon! What a magical adventure!"
+  },
+  castle: {
+    text: "🏰 A castle! Let's explore the Kingdom!"
+  },
+  rainbow: {
+    text: "🌈 A rainbow! Look at those beautiful colours!"
+  }
+};
+
+new FBXLoader().load(
+  '../kyle-walking-test/kyle_walking_v2.fbx',
+
+  async model => {
+    scene.add(model);
+
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const height = Math.max(size.y, 1);
+
+    camera.position.set(
+      center.x,
+      center.y + height * 0.25,
+      center.z + height * 2.3
+    );
+
+    camera.lookAt(center);
+    controls.target.copy(center);
+    controls.update();
+
+    model.traverse(child => {
+      if (child.isBone && child.name === 'Bone_045') {
+        bone045 = child;
+        rest045 = child.rotation.x;
+      }
+
+      if (child.isBone && child.name === 'Bone_046') {
+        bone046 = child;
+        rest046 = child.rotation.x;
+      }
+    });
+
+    modelReady = true;
+
+    status.textContent =
+      'Kyle ready! 045: ' +
+      (bone045 ? 'YES' : 'NO') +
+      ' | 046: ' +
+      (bone046 ? 'YES' : 'NO');
+
+    try {
+      const texture =
+        await new THREE.TextureLoader().loadAsync(
+          '../kyle-walking-test/Meshy_AI_Prince_Fox_biped_texture_0.png'
+        );
+
+      texture.colorSpace = THREE.SRGBColorSpace;
+
+      model.traverse(child => {
+        if (!child.isMesh) return;
+
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+
+        materials.forEach(mat => {
+          if (!mat) return;
+          mat.map = texture;
+          mat.needsUpdate = true;
+        });
+      });
+    } catch (error) {
+      console.error('Texture error:', error);
+    }
+  },
+
+  undefined,
+
+  error => {
+    status.textContent = 'Could not load Kyle.';
+    console.error(error);
+  }
+);
+
+async function playKyle(message) {
+  speech.textContent = message;
+
+  if (!modelReady) {
+    status.textContent = 'Kyle is still loading.';
+    return;
+  }
+
+  try {
+    if (!audioContext) {
+      audioContext = new AudioContext();
+
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 512;
+
+      audioData = new Uint8Array(
+        analyser.fftSize
+      );
+
+      source = audioContext.createMediaElementSource(
+        helloAudio
+      );
+
+      source.connect(analyser);
+      analyser.connect(audioContext.destination);
+    }
+
+    await audioContext.resume();
+
+    helloAudio.pause();
+    helloAudio.currentTime = 0;
+
+    currentAudio = helloAudio;
+
+    await helloAudio.play();
+
+    status.textContent = 'King Kyle is speaking!';
+  } catch (error) {
+    status.textContent =
+      'Could not play Kyle\'s voice.';
+
+    console.error(error);
+  }
+}
+
+document.querySelectorAll('.choice').forEach(
+  button => {
+    button.addEventListener('click', () => {
+      const choice = button.dataset.choice;
+      const response = responses[choice];
+
+      if (response) {
+        playKyle(response.text);
+      }
+    });
+  }
+);
+
+document.getElementById('again').onclick = () => {
+  playKyle(
+    '🦊 Hello again, little creator!'
+  );
+};
+
+helloAudio.addEventListener('ended', () => {
+  status.textContent = 'Kyle is ready for another adventure!';
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  let mouthOpen = 0;
+
+  if (
+    currentAudio &&
+    !currentAudio.paused &&
+    !currentAudio.ended &&
+    analyser
+  ) {
+    analyser.getByteTimeDomainData(audioData);
+
+    let total = 0;
+
+    for (let i = 0; i < audioData.length; i++) {
+      const sample = (audioData[i] - 128) / 128;
+      total += sample * sample;
+    }
+
+    const volume = Math.sqrt(
+      total / audioData.length
+    );
+
+    mouthOpen = Math.min(
+      Math.max((volume - 0.015) * 12, 0),
+      1
+    );
+  }
+
+  // Approved double-bone movement.
+  // Bone_046: 0 to +8 degrees.
+  // Bone_045: 0 to +2 degrees.
+
+  if (bone046) {
+    const target046 =
+      rest046 +
+      THREE.MathUtils.degToRad(
+        mouthOpen * 8
+      );
+
+    bone046.rotation.x +=
+      (target046 - bone046.rotation.x) * 0.30;
+  }
+
+  if (bone045) {
+    const target045 =
+      rest045 +
+      THREE.MathUtils.degToRad(
+        mouthOpen * 2
+      );
+
+    bone045.rotation.x +=
+      (target045 - bone045.rotation.x) * 0.30;
+  }
+
+  readout.textContent =
+    'Double jaw active | ' +
+    '046: ' + (mouthOpen * 8).toFixed(1) + '° | ' +
+    '045: ' + (mouthOpen * 2).toFixed(1) + '°';
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect =
+    stage.clientWidth / stage.clientHeight;
+
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(
+    stage.clientWidth,
+    stage.clientHeight
+  );
+});
+</script>
+</body>
+</html>
