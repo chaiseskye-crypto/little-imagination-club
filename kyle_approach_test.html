@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>King Kyle — Approach and Greet Test</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(#24164d,#6443a2);color:white;font-family:Arial,sans-serif;text-align:center}h2{margin:15px 8px 5px}p{margin:8px}#stage{height:52vh;min-height:300px;background:#090511;touch-action:none}#speech{background:white;color:#24164d;border-radius:20px;padding:16px;margin:12px;min-height:66px;font-size:18px}#choices{display:flex;gap:8px;padding:8px;justify-content:center}button{background:#d8ff75;color:#24164d;border:0;border-radius:20px;font-size:17px;font-weight:bold;min-height:62px;padding:12px;flex:1;cursor:pointer}button:focus-visible{outline:3px solid white}#status,#details{padding:7px;font-size:14px}#details{font-size:12px;opacity:.85}
+</style>
+</head>
+<body>
+<h2>👑 King Kyle Walks Over! 🦊</h2><p>Choose an adventure. Kyle will come and greet you!</p>
+<div id="stage"></div><div id="speech" aria-live="polite">Choose an adventure to call Kyle over!</div>
+<div id="choices"><button data-choice="dragon">🐉 Dragon</button><button data-choice="castle">🏰 Castle</button><button data-choice="rainbow">🌈 Rainbow</button></div>
+<div id="status" role="status">Preparing Kyle...</div><div id="details">Waiting for model</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const stage=document.getElementById('stage'),speech=document.getElementById('speech'),status=document.getElementById('status'),details=document.getElementById('details');
+const scene=new THREE.Scene();const camera=new THREE.PerspectiveCamera(45,stage.clientWidth/stage.clientHeight,.1,10000);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.setSize(stage.clientWidth,stage.clientHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;stage.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff,0x7777aa,3));const sun=new THREE.DirectionalLight(0xffffff,3);sun.position.set(5,10,8);scene.add(sun);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.enablePan=false;
+let model=null,mixer=null,walkAction=null,bone045=null,bone046=null,rest045=0,rest046=0,travel=0,phase='loading',pending=null;
+const clock=new THREE.Clock();const voice=new Audio('../King_Kyle_Official_Voice.wav');voice.preload='auto';
+let audioContext=null,analyser=null,audioData=null;
+const replies={dragon:'🐉 A dragon! What a magical adventure!',castle:'🏰 A castle! Let’s explore the Kingdom!',rainbow:'🌈 A rainbow! Look at those beautiful colours!'};
+// Keep model at its original orientation and move it towards the camera along the camera-facing axis.
+// The approach is a small, bounded demo movement, not free navigation.
+new FBXLoader().load('../kyle-walking-test/kyle_walking_v2.fbx',async loaded=>{
+ model=loaded;scene.add(model);
+ model.traverse(child=>{if(child.isBone&&child.name==='Bone_045'){bone045=child;rest045=child.rotation.x}if(child.isBone&&child.name==='Bone_046'){bone046=child;rest046=child.rotation.x}});
+ const box=new THREE.Box3().setFromObject(model),center=box.getCenter(new THREE.Vector3()),height=Math.max(box.getSize(new THREE.Vector3()).y,1);
+ // Face the camera as in the previous working demo. A modest diagonal approach remains in view.
+ camera.position.set(center.x,center.y+height*.25,center.z+height*2.6);camera.lookAt(center);controls.target.copy(center);controls.update();
+ const clips=loaded.animations||[];const clip=clips.find(c=>c.name.includes('Thoughtful_Walk'))||clips[0];
+ if(clip){mixer=new THREE.AnimationMixer(model);walkAction=mixer.clipAction(clip);walkAction.setLoop(THREE.LoopRepeat);walkAction.enabled=true;walkAction.play();walkAction.paused=true;}
+ // Important: walking clips may animate jaw bones too. The jaw override runs AFTER mixer.update.
+ try{const tex=await new THREE.TextureLoader().loadAsync('../kyle-walking-test/Meshy_AI_Prince_Fox_biped_texture_0.png');tex.colorSpace=THREE.SRGBColorSpace;model.traverse(child=>{if(!child.isMesh)return;for(const mat of (Array.isArray(child.material)?child.material:[child.material])){if(mat){mat.map=tex;mat.needsUpdate=true}}})}catch(e){console.warn('Texture unavailable',e)}
+ phase='idle';status.textContent='Kyle is ready! Choose an adventure.';details.textContent=`Walk animation: ${clip?clip.name:'not found'} | 045: ${!!bone045} | 046: ${!!bone046}`;
+},undefined,error=>{status.textContent='Could not load Kyle';console.error(error)});
+async function speak(){
+ try{if(!audioContext){audioContext=new AudioContext();analyser=audioContext.createAnalyser();analyser.fftSize=512;audioData=new Uint8Array(analyser.fftSize);const src=audioContext.createMediaElementSource(voice);src.connect(analyser);analyser.connect(audioContext.destination)}await audioContext.resume();voice.pause();voice.currentTime=0;phase='speaking';status.textContent='Kyle has stopped to speak!';await voice.play()}catch(e){phase='idle';status.textContent='Voice could not play';console.error(e)}
+}
+voice.addEventListener('ended',()=>{phase='idle';status.textContent='Kyle is ready for another choice!'});
+function choose(key){if(!model||phase==='loading')return;voice.pause();pending=key;speech.textContent=replies[key]+' (Kyle uses his approved hello recording for this test.)';travel=0;model.position.set(0,0,0);phase='approaching';if(walkAction){walkAction.reset();walkAction.play();walkAction.paused=false}status.textContent='Kyle is walking over to greet you!'}
+document.querySelectorAll('[data-choice]').forEach(button=>button.addEventListener('click',()=>choose(button.dataset.choice)));
+function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);
+ if(model){
+  if(phase==='approaching'){
+   // Two seconds of bounded movement, from slightly left to centre and slightly closer.
+   travel=Math.min(travel+dt/2,1);const t=travel*travel*(3-2*travel);
+   const h=Math.max(new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).y,1);
+   model.position.x=-h*.22*(1-t);model.position.z=h*.12*t;
+   if(mixer)mixer.update(dt);
+   if(travel>=1){if(walkAction)walkAction.paused=true;phase='waiting';speak()}
+  }
+  // During speaking, do not advance the walking animation: no accidental foot shuffling.
+  let openness=0;
+  if(phase==='speaking'&&!voice.paused&&!voice.ended&&analyser){analyser.getByteTimeDomainData(audioData);let sum=0;for(let i=0;i<audioData.length;i++){const v=(audioData[i]-128)/128;sum+=v*v}openness=THREE.MathUtils.clamp((Math.sqrt(sum/audioData.length)-.015)*12,0,1)}
+  if(bone046){const target=rest046+THREE.MathUtils.degToRad(openness*8);bone046.rotation.x+=(target-bone046.rotation.x)*.30}
+  if(bone045){const target=rest045+THREE.MathUtils.degToRad(openness*2);bone045.rotation.x+=(target-bone045.rotation.x)*.30}
+ }
+ controls.update();renderer.render(scene,camera)
+}animate();
+window.addEventListener('resize',()=>{camera.aspect=stage.clientWidth/stage.clientHeight;camera.updateProjectionMatrix();renderer.setSize(stage.clientWidth,stage.clientHeight)});
+</script>
+</body></html>
